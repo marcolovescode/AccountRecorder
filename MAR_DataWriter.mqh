@@ -62,12 +62,8 @@ class DataWriter {
     char csvSep;
     
     string actParamDataInput;
-    DataWriterType actParamForDbType;
-    DataWriterType actParamIgnoreDbType;
     
     bool isInit;
-    
-    bool queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0, int colIndex = 0);
 
     public:
     DataWriterType dbType;
@@ -86,14 +82,15 @@ class DataWriter {
     int connectRetries;
     int connectRetryDelaySecs;
     
-    bool queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool queryRun(string dataInput);
     bool getCsvHandle(int &outFileHandle);
     
     bool queryRetrieveRows(string query, string &result[][]);
-    bool queryRetrieveOne(string query, string &result, int rowIndex = 0, int colIndex = 0);
-    bool queryRetrieveOne(string query, int &result, int rowIndex = 0, int colIndex = 0);
-    bool queryRetrieveOne(string query, double &result, int rowIndex = 0, int colIndex = 0);
-    bool queryRetrieveOne(string query, bool &result, int rowIndex = 0, int colIndex = 0);
+    bool queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/);
+    bool queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/);
+    bool queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/);
+    bool queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/);
+    bool queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/);
 };
 
 void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecsIn=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -286,18 +283,13 @@ void DataWriter::handleError(DataWriterFunc source, string message, string extra
     }
 }
 
-bool DataWriter::queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    if(forDbType > -1 && forDbType != dbType) { return false; }
-    if(ignoreDbType > -1 && ignoreDbType == dbType) { return false; }
-    
+bool DataWriter::queryRun(string dataInput) {
     if(!isInit) {
         MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
         return false;
     }
-    
+
     actParamDataInput = dataInput;
-    actParamForDbType = forDbType;
-    actParamIgnoreDbType = ignoreDbType;
     
     int result; bool bResult; string fileContents;
     switch(dbType) {
@@ -358,6 +350,11 @@ bool DataWriter::getCsvHandle(int &outFileHandle) {
     // This is needed because CSV is written by FileWrite, which takes a variable number of params
     // that is determined at code level
     
+    if(!isInit) {
+        MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
+        return false;
+    }
+    
     switch(dbType) {
         case DW_Csv:
             if(fileHandle != INVALID_HANDLE) {
@@ -381,7 +378,12 @@ bool DataWriter::getCsvHandle(int &outFileHandle) {
 }
 
 bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
-    // TODO: DYNAMIC MULTIDIMENSIONAL ARRAY????? Currently need to HARDCODE dim1+ size
+    // NOTE: Multidim array size needs to be hardcoded to the expected number of cols. Else, this fails.
+    
+    if(!isInit) {
+        MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
+        return false;
+    }
     
     int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0;
     
@@ -428,9 +430,15 @@ bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
     }
 }
 
-bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0, int colIndex = 0) {
+bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/) {
+    if(!isInit) {
+        MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
+        return false;
+    }
+    
+    int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
     int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
-    string allRows[][1]; // TODO: DYNAMIC MULTIDIMENSIONAL ARRAY????? Currently need to HARDCODE dim1+ size
+    string allRows[][1];
     bool queryResult; bool returnResult = false;
     
     switch(dbType) {
@@ -439,7 +447,7 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
 
             for(i = 0; sqlite_next_row(queryHandle) == 1; i++) {
                 if(i == rowIndex) {
-                    for (j = 0; j < cols[0]; i++) {
+                    for (j = 0; j < cols[0]; j++) {
                         if(j == colIndex) { 
                             stringResult = sqlite_get_col(queryHandle, i); 
                             returnResult = true;
@@ -513,18 +521,18 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
     }
 }
 
-bool DataWriter::queryRetrieveOne(string query, string &result, int rowIndex = 0, int colIndex = 0) {
-    return queryRetrieveOneGeneric(query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex, colIndex);
+bool DataWriter::queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/) {
+    return queryRetrieveOneGeneric(query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex/*, colIndex*/);
 }
 
-bool DataWriter::queryRetrieveOne(string query, int &result, int rowIndex = 0, int colIndex = 0) {
-    return queryRetrieveOneGeneric(query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex, colIndex);
+bool DataWriter::queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/) {
+    return queryRetrieveOneGeneric(query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex/*, colIndex*/);
 }
 
-bool DataWriter::queryRetrieveOne(string query, double &result, int rowIndex = 0, int colIndex = 0) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex, colIndex);
+bool DataWriter::queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/) {
+    return queryRetrieveOneGeneric(query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex/*, colIndex*/);
 }
 
-bool DataWriter::queryRetrieveOne(string query, bool &result, int rowIndex = 0, int colIndex = 0) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex, colIndex);
+bool DataWriter::queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/) {
+    return queryRetrieveOneGeneric(query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex/*, colIndex*/);
 }
