@@ -25,8 +25,8 @@ class DataManager {
     void removeDataWriter(int index);
     void removeAllDataWriters();
     
-    bool commit(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
-    bool commitByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
+    bool queryRunByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
 };
 
 void DataManager::~DataManager() {
@@ -61,16 +61,16 @@ void DataManager::removeAllDataWriters() {
     ArrayFree(dWriters);
 }
 
-bool DataManager::commitByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return dWriters[index].commit(dataInput, forDbType, ignoreDbType);
+bool DataManager::queryRunByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+    return dWriters[index].queryRun(dataInput, forDbType, ignoreDbType);
 }
 
-bool DataManager::commit(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false) {
+bool DataManager::queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false) {
     int dWritersLength = ArraySize(dWriters);
     
     bool finalResult = false;
     for(int i = 0; i < dWritersLength; i++) {
-        bool result = commitByIndex(i, dataInput, forDbType, ignoreDbType);
+        bool result = queryRunByIndex(i, dataInput, forDbType, ignoreDbType);
         if(result) { finalResult = true; }
         if(doAll && result) { return true; }
     }

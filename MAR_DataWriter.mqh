@@ -18,9 +18,10 @@ const int MysqlDefaultPort = 3306;
 
 enum DataWriterFunc {
     DW_Func_None,
-    DW_Commit,
-    DW_CommitCsv,
-    DW_Retrieve
+    DW_QueryRun,
+    DW_GetCsvHandle,
+    DW_QueryRetrieveRows,
+    DW_QueryRetrieveOne
 };
 
 enum DataWriterType {
@@ -32,8 +33,20 @@ enum DataWriterType {
     DW_Mysql
 };
 
+enum DataWriterResultType {
+    DW_String,
+    DW_Bool,
+    DW_Int,
+    DW_Double
+};
+
 class DataWriter {
     private:
+    string zeroString;
+    int zeroInt;
+    double zeroDouble;
+    bool zeroBool;
+    
     int dbConnectId; // mysql, postgres
     string dbUser;
     string dbPass;
@@ -53,6 +66,8 @@ class DataWriter {
     DataWriterType actParamIgnoreDbType;
     
     bool isInit;
+    
+    bool queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0, int colIndex = 0);
 
     public:
     DataWriterType dbType;
@@ -66,13 +81,19 @@ class DataWriter {
     bool reconnect();
     bool attemptReconnect();
     
-    bool commit(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool commitCsv(string param1="", string param2="", string param3="", string param4="", string param5="", string param6="", string param7="", string param8="", string param9="", string param10="", string param11="", string param12="", string param13="", string param14="", string param15="", string param16="", string param17="", string param18="", string param19="", string param20="", string param21="", string param22="", string param23="", string param24="", string param25="", string param26="", string param27="", string param28="", string param29="", string param30="", string param31="", string param32="", string param33="", string param34="", string param35="", string param36="", string param37="", string param38="", string param39="", string param40="", string param41="", string param42="", string param43="", string param44="", string param45="", string param46="", string param47="", string param48="", string param49="", string param50="", string param51="", string param52="", string param53="", string param54="", string param55="", string param56="", string param57="", string param58="", string param59="", string param60="", string param61="", string param62="", string param63="");
-    
     void handleError(DataWriterFunc source, string message, string extraInfo="", string funcTrace="", string params="");
 
     int connectRetries;
     int connectRetryDelaySecs;
+    
+    bool queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool getCsvHandle(int &outFileHandle);
+    
+    bool queryRetrieveRows(string query, string &result[][]);
+    bool queryRetrieveOne(string query, string &result, int rowIndex = 0, int colIndex = 0);
+    bool queryRetrieveOne(string query, int &result, int rowIndex = 0, int colIndex = 0);
+    bool queryRetrieveOne(string query, double &result, int rowIndex = 0, int colIndex = 0);
+    bool queryRetrieveOne(string query, bool &result, int rowIndex = 0, int colIndex = 0);
 };
 
 void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecsIn=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -148,7 +169,6 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
             
             isInit = true;
             return true;
-            break;
 
         case DW_Mysql:
             bResult = init_MySQL(dbConnectId, dbHost, dbUser, dbPass, dbName, dbPort, dbSocket, dbClient);
@@ -158,7 +178,6 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
                 return false; 
             } 
             else { isInit = true; return true; }
-            break;
 
         case DW_Postgres:
             bResult = init_PSQL(dbConnectId, dbConnectString);
@@ -168,7 +187,6 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
                 return false; 
             }
             else { isInit = true; return true; }
-            break;
         
         case DW_Text:
         case DW_Csv:
@@ -178,12 +196,10 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
                 MC_Error::ThrowError(ErrorNormal, "Text file could not be opened: " + GetLastError(), FunctionTrace, param);
                 return false;
             } else { isInit = true; return true; }
-            break;
         
         default:
             MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             return false;
-            break;
     }
 }
 
@@ -270,7 +286,7 @@ void DataWriter::handleError(DataWriterFunc source, string message, string extra
     }
 }
 
-bool DataWriter::commit(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+bool DataWriter::queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
     if(forDbType > -1 && forDbType != dbType) { return false; }
     if(ignoreDbType > -1 && ignoreDbType == dbType) { return false; }
     
@@ -283,46 +299,43 @@ bool DataWriter::commit(string dataInput, DataWriterType forDbType = -1, DataWri
     actParamForDbType = forDbType;
     actParamIgnoreDbType = ignoreDbType;
     
-    int result; bool bResult; string fileContents; int dataInputArrLen;
+    int result; bool bResult; string fileContents;
     switch(dbType) {
         case DW_Sqlite: // param = file path
             result = sqlite_exec(filePath, dataInput + ""); // extra "" fixes mt4 build 640 dll param corruption
             if (result != 0) { 
-                handleError(DW_Commit, "Sqlite expression failed: ", result, FunctionTrace, dataInput); 
+                handleError(DW_QueryRun, "Sqlite expression failed: ", result, FunctionTrace, dataInput); 
                 return false; 
             }
             else { return true; }
-            break;
 
         case DW_Mysql:
             bResult = MySQL_Query(dbConnectId, dataInput);
             if (!bResult) { 
-                handleError(DW_Commit, "MySQL query failed", "", FunctionTrace, dataInput); 
+                handleError(DW_QueryRun, "MySQL query failed", "", FunctionTrace, dataInput); 
                 return false; 
             } // MYSQL lib prints error
             else { return true; }
-            break;
 
         case DW_Postgres:
             bResult = PSQL_Query(dbConnectId, dataInput);
             if (!bResult) { 
-                handleError(DW_Commit, "Postgres query failed", "", FunctionTrace, dataInput); 
+                handleError(DW_QueryRun, "Postgres query failed", "", FunctionTrace, dataInput); 
                 return false; 
             } // PSQL lib prints error
             else { return true; }
-            break;
 
         case DW_Text:
             dataInput = lineComment + "\n" + dataInput + "\n";
 
             if(fileHandle != INVALID_HANDLE) {
                 if(!FileSeek(fileHandle, 0, SEEK_END)) { // todo: do while loop, while(!FileIsEnding(fileHandle) && i < 10
-                    handleError(DW_Commit, "Could not seek file: ", GetLastError(), FunctionTrace, filePath); 
+                    handleError(DW_QueryRun, "Could not seek file: ", GetLastError(), FunctionTrace, filePath); 
                     return false;
                 }
                 
                 if(!FileWriteString(fileHandle, fileContents)) { 
-                    handleError(DW_Commit, "Could not write contents: ", GetLastError(), FunctionTrace, filePath); 
+                    handleError(DW_QueryRun, "Could not write contents: ", GetLastError(), FunctionTrace, filePath); 
                     return false; 
                 }
                 else { return true; }
@@ -330,47 +343,188 @@ bool DataWriter::commit(string dataInput, DataWriterType forDbType = -1, DataWri
                 MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
                 return false; 
             }
-            break;
             
         case DW_Csv:
-            MC_Error::PrintInfo(ErrorInfo, "Skipping CSV file for commit, use commitCsv", FunctionTrace);
+            MC_Error::PrintInfo(ErrorInfo, "Skipping CSV file for queryRun, use getCsvHandle and FileWrite", FunctionTrace);
             return false;
-            break;
         
         default:
             MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             return false;
-            break;
     }
-    
-    return true;
 }
 
-bool DataWriter::commitCsv(string param1="", string param2="", string param3="", string param4="", string param5="", string param6="", string param7="", string param8="", string param9="", string param10="", string param11="", string param12="", string param13="", string param14="", string param15="", string param16="", string param17="", string param18="", string param19="", string param20="", string param21="", string param22="", string param23="", string param24="", string param25="", string param26="", string param27="", string param28="", string param29="", string param30="", string param31="", string param32="", string param33="", string param34="", string param35="", string param36="", string param37="", string param38="", string param39="", string param40="", string param41="", string param42="", string param43="", string param44="", string param45="", string param46="", string param47="", string param48="", string param49="", string param50="", string param51="", string param52="", string param53="", string param54="", string param55="", string param56="", string param57="", string param58="", string param59="", string param60="", string param61="", string param62="", string param63="") {
+bool DataWriter::getCsvHandle(int &outFileHandle) {
+    // This is needed because CSV is written by FileWrite, which takes a variable number of params
+    // that is determined at code level
+    
     switch(dbType) {
         case DW_Csv:
             if(fileHandle != INVALID_HANDLE) {
                 if(!FileSeek(fileHandle, 0, SEEK_END)) { // todo: do while loop, while(!FileIsEnding(fileHandle) && i < 10);
-                    handleError(DW_Commit, "Could not seek file: ", GetLastError(), FunctionTrace, filePath); 
+                    handleError(DW_QueryRun, "Could not seek file: ", GetLastError(), FunctionTrace, filePath); 
                     return false;
                 }
         
-                if(!FileWrite(fileHandle, param1, param2, param3, param4, param5, param6, param7, param8, param9, param10, param11, param12, param13, param14, param15, param16, param17, param18, param19, param20, param21, param22, param23, param24, param25, param26, param27, param28, param29, param30, param31, param32, param33, param34, param35, param36, param37, param38, param39, param40, param41, param42, param43, param44, param45, param46, param47, param48, param49, param50, param51, param52, param53, param54, param55, param56, param57, param58, param59, param60, param61, param62, param63)) {
-                    handleError(DW_CommitCsv, "Could not write file: ", GetLastError(), FunctionTrace, filePath); 
-                    return false;
-                } 
-                else { return true; }
+                outFileHandle = fileHandle;
+
+                return true;
             } else {
                 MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
                 return false; 
             }    
-            break;
             
         default:
             MC_Error::ThrowError(ErrorNormal, "dbType is not CSV", FunctionTrace, dbType);
             return false;
+    }
+}
+
+bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
+    // TODO: DYNAMIC MULTIDIMENSIONAL ARRAY????? Currently need to HARDCODE dim1+ size
+    
+    int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0;
+    
+    ArrayFree(result);
+    
+    switch(dbType) {
+        case DW_Sqlite:
+            queryHandle = sqlite_query(filePath, query, cols);
+
+            for (i = 0; sqlite_next_row(queryHandle) == 1; i++) {
+                ArrayResize(result, i+1);
+                for (j = 0; j < cols[0]; j++) {
+                    result[i][j] = sqlite_get_col(queryHandle, j);
+                }
+            }
+        
+            sqlite_free_query(queryHandle);
+            return (i > 0 && j > 0);
+            
+        case DW_Mysql:
+            callResult = MySQL_FetchArray(dbConnectId, query, result);
+            if(callResult < 1) { 
+                handleError(DW_QueryRetrieveRows, "Query did not return any rows: ", callResult, FunctionTrace, query);
+                return false; 
+            }
+            else { return true; }
+            
+        case DW_Postgres:
+            callResult = PSQL_FetchArray(dbConnectId, query, result);
+            if(callResult < 1) { 
+                handleError(DW_QueryRetrieveRows, "Query did not return any rows: ", callResult, FunctionTrace, query);
+                return false; 
+            }
+            else { return true; }
+            
+        case DW_Text:
+        case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
+            MC_Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
+            return false;           
+    
+        default:
+            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            return false;
+    }
+}
+
+bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0, int colIndex = 0) {
+    int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
+    string allRows[][1]; // TODO: DYNAMIC MULTIDIMENSIONAL ARRAY????? Currently need to HARDCODE dim1+ size
+    bool queryResult; bool returnResult = false;
+    
+    switch(dbType) {
+        case DW_Sqlite:
+            queryHandle = sqlite_query(filePath, query, cols);
+
+            for(i = 0; sqlite_next_row(queryHandle) == 1; i++) {
+                if(i == rowIndex) {
+                    for (j = 0; j < cols[0]; i++) {
+                        if(j == colIndex) { 
+                            stringResult = sqlite_get_col(queryHandle, i); 
+                            returnResult = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        
+            sqlite_free_query(queryHandle);
             break;
+            
+        case DW_Mysql:
+        case DW_Postgres:
+            // todo: would be nice to copy these methods from the helper libraries directly
+            // so we can refer to data directly by row and col
+            queryResult = queryRetrieveRows(query, allRows);
+            if(!queryResult) { 
+                handleError(DW_QueryRetrieveOne, "Query did not return any rows: ", "", FunctionTrace, query);
+                return false; 
+            }
+            else {
+                int dim1Size = ArrayRange(allRows, 1);
+                int dim0Size = ArraySize(allRows) / dim1Size;
+                
+                if(dim0Size < rowIndex+1/* || dim1Size < colIndex+1*/) { 
+                    // we can't determine colSize valid because we already size the col dimension to the requested index
+                    handleError(DW_QueryRetrieveOne, "Query did not return enough rows: ", "", FunctionTrace, query);
+                    return false;
+                } else {
+                    stringResult = allRows[rowIndex][colIndex];
+                    returnResult = true;
+                    break;
+                }
+            }
+            
+        case DW_Text:
+        case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
+            MC_Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
+            return false;           
+    
+        default:
+            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            return false;
     }
     
-    return true;
+    if(returnResult) {
+        switch(resultType) {
+            case DW_Int:
+                intResult = StringToInteger(stringResult);
+                stringResult = "";
+                return true;
+                
+            case DW_Double:
+                doubleResult = StringToDouble(stringResult);
+                stringResult = "";
+                return true;
+                
+            case DW_Bool:
+                boolResult = (bool)(StringToInteger(stringResult));
+                stringResult = "";
+                return true;
+                
+            default:
+                return true; // pass stringResult        
+        }
+    } else { 
+        handleError(DW_QueryRetrieveOne, "Query did not return data: ", "", FunctionTrace, query);
+        return false; 
+    }
+}
+
+bool DataWriter::queryRetrieveOne(string query, string &result, int rowIndex = 0, int colIndex = 0) {
+    return queryRetrieveOneGeneric(query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex, colIndex);
+}
+
+bool DataWriter::queryRetrieveOne(string query, int &result, int rowIndex = 0, int colIndex = 0) {
+    return queryRetrieveOneGeneric(query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex, colIndex);
+}
+
+bool DataWriter::queryRetrieveOne(string query, double &result, int rowIndex = 0, int colIndex = 0) {
+    return queryRetrieveOneGeneric(query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex, colIndex);
+}
+
+bool DataWriter::queryRetrieveOne(string query, bool &result, int rowIndex = 0, int colIndex = 0) {
+    return queryRetrieveOneGeneric(query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex, colIndex);
 }
