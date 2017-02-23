@@ -6,17 +6,13 @@
 #include "MC_Common/MC_Common.mqh"
 #include "MC_Common/MC_Error.mqh"
 
-#include "MAR_Settings.mqh"
-
-#include "MAR_DataManager.mqh"
+#include "MAR_Main.mqh"
 
 //+------------------------------------------------------------------+
-DataManager *MainDataManager;
+MainAccountRecorder *AccountMan;
 
 int OnInit() {
-    MainDataManager = new DataManager();
-    
-    
+    AccountMan = new MainAccountRecorder();
     
     return INIT_SUCCEEDED;
 }
@@ -24,5 +20,5 @@ int OnInit() {
 
 
 void OnDeinit(const int reason) {
-    if(CheckPointer(MainDataManager) == POINTER_DYNAMIC) { delete(MainDataManager); }
+    if(CheckPointer(AccountMan) == POINTER_DYNAMIC) { delete(AccountMan); }
 }
