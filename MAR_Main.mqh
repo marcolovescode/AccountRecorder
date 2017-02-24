@@ -7,6 +7,13 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 //+------------------------------------------------------------------+
+
+//#define _LOCALRESOURCE
+
+#ifdef _LOCALRESOURCE
+    #include "MAR_Scripts/MAR_Scripts.mqh"
+#endif
+
 #include "MAR_DataWriterManager.mqh"
 #include "MAR_Settings.mqh"
 
