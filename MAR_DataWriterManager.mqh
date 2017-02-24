@@ -12,11 +12,6 @@
 
 class DataWriterManager {
     private:
-    string zeroString;
-    int zeroInt;
-    double zeroDouble;
-    bool zeroBool;
-    
     DataWriter *dWriters[];
     int dwCsvIds[];
     
@@ -36,17 +31,11 @@ class DataWriterManager {
     bool queryRetrieveRowsByIndex(int index, string query, string &result[][], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     bool queryRetrieveRows(string query, string &result[][], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     
-    bool queryRetrieveOneByIndexGeneric(int index, string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOneByIndex(int index, string query, string &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOneByIndex(int index, string query, int &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOneByIndex(int index, string query, double &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOneByIndex(int index, string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    
-    bool queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    template<typename T>
+    bool queryRetrieveOneByIndex(int index, string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+
+    template<typename T>
+    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
 };
 
 void DataWriterManager::~DataWriterManager() {
@@ -122,54 +111,23 @@ bool DataWriterManager::queryRetrieveRows(string query, string &result[][], Data
     return false;
 }
 
-bool DataWriterManager::queryRetrieveOneByIndexGeneric(int index, string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+template<typename T>
+bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
     if(forDbType > -1 && forDbType != dWriters[index].dbType) { return false; }
     if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return false; }
     
-    return dWriters[index].queryRetrieveOneGeneric(query, stringResult, intResult, doubleResult, boolResult, resultType, rowIndex);
+    return dWriters[index].queryRetrieveOne(query, result, rowIndex);
 }
 
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, string &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneByIndexGeneric(index, query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, int &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneByIndexGeneric(index, query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, double &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneByIndexGeneric(index, query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneByIndexGeneric(index, query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex, forDbType, ignoreDbType);
-}
-
-
-bool DataWriterManager::queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+template<typename T>
+bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
     int dWritersLength = ArraySize(dWriters);
     
     bool callResult;
     for(int i = 0; i < dWritersLength; i++) {
-        callResult = queryRetrieveOneByIndexGeneric(i, query, stringResult, intResult, doubleResult, boolResult, resultType, rowIndex, forDbType, ignoreDbType);
+        callResult = queryRetrieveOneByIndex(i, query, result, rowIndex, forDbType, ignoreDbType);
         if(callResult) { return true; }
     }
 
     return false;
-}
-
-bool DataWriterManager::queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneGeneric(query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneGeneric(query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex, forDbType, ignoreDbType);
-}
-
-bool DataWriterManager::queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex, forDbType, ignoreDbType);
 }

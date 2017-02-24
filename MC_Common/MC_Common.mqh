@@ -7,13 +7,6 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 
-enum DataType {
-    DataString,
-    DataBool,
-    DataInt,
-    DataDouble
-};
-
 enum StringType {
     Type_Alphanumeric,
     Type_Uppercase,
@@ -32,16 +25,11 @@ class MC_Common {
     
     public:
     //array
-    static int ArrayPushGeneric(string &stringArray[], int &intArray[], double &doubleArray[], bool &boolArray[], string stringUnit, int intUnit, double doubleUnit, bool boolUnit, DataType inputType);
-    static int ArrayReserveGeneric(string &stringArray[], int &intArray[], double &doubleArray[], bool &boolArray[], DataType inputType, int reserveSize);
-    static int ArrayPush(string &array[], int unit);
-    static int ArrayPush(int &array[], int unit);
-    static int ArrayPush(double &array[], int unit);
-    static int ArrayPush(bool &array[], int unit);
-    static int ArrayReserve(string &array[], int reserveSize);
-    static int ArrayReserve(int &array[], int reserveSize);
-    static int ArrayReserve(double &array[], int reserveSize);
-    static int ArrayReserve(bool &array[], int reserveSize);
+    template<typename T>
+    static int ArrayPush(T &array[], T unit);
+    
+    template<typename T>
+    static int ArrayReserve(T &array[], int reserveSize);
     
     // string
     static string StringTrim(string inputStr);
@@ -56,70 +44,25 @@ class MC_Common {
     static string GetUuid();
 };
 
-string MC_Common::StringZeroArray[1];
-bool MC_Common::BoolZeroArray[1];
-int MC_Common::IntZeroArray[1];
-double MC_Common::DoubleZeroArray[1];
-
-int MC_Common::ArrayPushGeneric(string &stringArray[], int &intArray[], double &doubleArray[], bool &boolArray[], string stringUnit, int intUnit, double doubleUnit, bool boolUnit, DataType inputType) {
+template<typename T>
+int MC_Common::ArrayPush(T &array[], T unit) {
     int size;
     
-    switch(inputType) {
-        case DataInt: size = ArraySize(intArray); ArrayResize(intArray, size+1); intArray[size] = intUnit; break;
-        case DataDouble: size = ArraySize(doubleArray); ArrayResize(doubleArray, size+1); doubleArray[size] = doubleUnit; break;
-        case DataBool: size = ArraySize(boolArray); ArrayResize(boolArray, size+1); boolArray[size] = boolUnit; break;
-        default: size = ArraySize(stringArray); ArrayResize(stringArray, size+1); stringArray[size] = stringUnit; break;
-    }
+    ArraySize(array);
+    ArrayResize(array, size+1);
+    array[size] = unit;
     
     return size + 1;
 }
 
-int MC_Common::ArrayReserveGeneric(string &stringArray[], int &intArray[], double &doubleArray[], bool &boolArray[], DataType inputType, int reserveSize) {
+template<typename T>
+int MC_Common::ArrayReserve(T &array[], int reserveSize) {
     int size;
     
-    switch(inputType) {
-        case DataInt: size = ArraySize(intArray); ArrayResize(intArray, size, reserveSize); break;
-        case DataDouble: size = ArraySize(doubleArray); ArrayResize(doubleArray, size, reserveSize); break;
-        case DataBool: size = ArraySize(boolArray); ArrayResize(boolArray, size, reserveSize); break;
-        default: size = ArraySize(stringArray); ArrayResize(stringArray, size, reserveSize); break;
-    }
+    ArraySize(array);
+    ArrayResize(array, size, reserveSize);
     
     return size + reserveSize;
-}
-
-
-int MC_Common::ArrayPush(string &array[], int unit) {
-    return ArrayPushGeneric(array, IntZeroArray, DoubleZeroArray, BoolZeroArray, unit, NULL, NULL, NULL, DataString);
-}
-
-int MC_Common::ArrayPush(int &array[], int unit) {
-    return ArrayPushGeneric(StringZeroArray, array, DoubleZeroArray, BoolZeroArray, NULL, unit, NULL, NULL, DataInt);
-}
-
-
-int MC_Common::ArrayPush(double &array[], int unit) {
-    return ArrayPushGeneric(StringZeroArray, IntZeroArray, array, BoolZeroArray, NULL, NULL, unit, NULL, DataDouble);
-}
-
-
-int MC_Common::ArrayPush(bool &array[], int unit) {
-    return ArrayPushGeneric(StringZeroArray, IntZeroArray, DoubleZeroArray, array, NULL, NULL, NULL, unit, DataBool);
-}
-
-int MC_Common::ArrayReserve(string &array[], int reserveSize) {
-    return ArrayReserveGeneric(array, IntZeroArray, DoubleZeroArray, BoolZeroArray, DataString, reserveSize);
-}
-
-int MC_Common::ArrayReserve(int &array[], int reserveSize) {
-    return ArrayReserveGeneric(StringZeroArray, array, DoubleZeroArray, BoolZeroArray, DataInt, reserveSize);
-}
-
-int MC_Common::ArrayReserve(double &array[], int reserveSize) {
-    return ArrayReserveGeneric(StringZeroArray, IntZeroArray, array, BoolZeroArray, DataDouble, reserveSize);
-}
-
-int MC_Common::ArrayReserve(bool &array[], int reserveSize) {
-    return ArrayReserveGeneric(StringZeroArray, IntZeroArray, DoubleZeroArray, array, DataBool, reserveSize);
 }
 
 string MC_Common::StringTrim(string inputStr) {
@@ -130,8 +73,8 @@ bool MC_Common::StrToBool(string inputStr) {
     StringToLower(inputStr);
     string testStr = StringTrim(inputStr);
     
-    if(StringCompare(testStr,"true") == 0) { return true; }
-    else if(StringCompare(testStr,"false") == 0) { return false; }
+    if(StringCompare(testStr,"true") == 0 || StringCompare(testStr,"t") == 0) { return true; }
+    else if(StringCompare(testStr,"false") == 0 || StringCompare(testStr,"f") == 0) { return false; }
     else return (bool)StrToInteger(testStr);
 }
 

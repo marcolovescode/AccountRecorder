@@ -9,6 +9,7 @@
 //+------------------------------------------------------------------+
 #define _MariaDB
 
+#include "MC_Common/MC_Common.mqh"
 #include "MC_Common/MC_Error.mqh"
 #include "MAR_Library/sqlite.mqh"
 #include "MAR_Library/mql4-mysql.mqh"
@@ -33,20 +34,8 @@ enum DataWriterType {
     DW_Mysql
 };
 
-enum DataWriterResultType {
-    DW_String,
-    DW_Bool,
-    DW_Int,
-    DW_Double
-};
-
 class DataWriter {
     private:
-    string zeroString;
-    int zeroInt;
-    double zeroDouble;
-    bool zeroBool;
-    
     int dbConnectId; // mysql, postgres
     string dbUser;
     string dbPass;
@@ -86,11 +75,9 @@ class DataWriter {
     bool getCsvHandle(int &outFileHandle);
     
     bool queryRetrieveRows(string query, string &result[][]);
-    bool queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/);
-    bool queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/);
-    bool queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/);
-    bool queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/);
-    bool queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/);
+    
+    template<typename T>
+    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/);
 };
 
 void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecsIn=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -430,7 +417,8 @@ bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
     }
 }
 
-bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int &intResult, double &doubleResult, bool &boolResult, DataWriterResultType resultType, int rowIndex = 0/*, int colIndex = 0*/) {
+template<typename T>
+bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/) {
     if(!isInit) {
         MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
         return false;
@@ -439,7 +427,7 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
     int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
     int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
     string allRows[][1];
-    bool queryResult; bool returnResult = false;
+    bool queryResult; bool returnResult = false; string dbResult;
     
     switch(dbType) {
         case DW_Sqlite:
@@ -449,7 +437,7 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
                 if(i == rowIndex) {
                     for (j = 0; j < cols[0]; j++) {
                         if(j == colIndex) { 
-                            stringResult = sqlite_get_col(queryHandle, i); 
+                            dbResult = sqlite_get_col(queryHandle, i); 
                             returnResult = true;
                             break;
                         }
@@ -479,7 +467,7 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
                     handleError(DW_QueryRetrieveOne, "Query did not return enough rows: ", "", FunctionTrace, query);
                     return false;
                 } else {
-                    stringResult = allRows[rowIndex][colIndex];
+                    dbResult = allRows[rowIndex][colIndex];
                     returnResult = true;
                     break;
                 }
@@ -496,43 +484,15 @@ bool DataWriter::queryRetrieveOneGeneric(string query, string &stringResult, int
     }
     
     if(returnResult) {
-        switch(resultType) {
-            case DW_Int:
-                intResult = StringToInteger(stringResult);
-                stringResult = "";
-                return true;
-                
-            case DW_Double:
-                doubleResult = StringToDouble(stringResult);
-                stringResult = "";
-                return true;
-                
-            case DW_Bool:
-                boolResult = (bool)(StringToInteger(stringResult));
-                stringResult = "";
-                return true;
-                
-            default:
-                return true; // pass stringResult        
-        }
+        string type = typename(T);
+        if(type == "int") { result = StringToInteger(dbResult); }
+        else if(type =="double") { result = StringToDouble(dbResult); }
+        else if(type == "bool") { result = MC_Common::StrToBool(dbResult); }
+        else { result = dbResult; }
+        
+        return true;
     } else { 
         handleError(DW_QueryRetrieveOne, "Query did not return data: ", "", FunctionTrace, query);
         return false; 
     }
-}
-
-bool DataWriter::queryRetrieveOne(string query, string &result, int rowIndex = 0/*, int colIndex = 0*/) {
-    return queryRetrieveOneGeneric(query, result, zeroInt, zeroDouble, zeroBool, DW_String, rowIndex/*, colIndex*/);
-}
-
-bool DataWriter::queryRetrieveOne(string query, int &result, int rowIndex = 0/*, int colIndex = 0*/) {
-    return queryRetrieveOneGeneric(query, zeroString, result, zeroDouble, zeroBool, DW_Int, rowIndex/*, colIndex*/);
-}
-
-bool DataWriter::queryRetrieveOne(string query, double &result, int rowIndex = 0/*, int colIndex = 0*/) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, result, zeroBool, DW_Double, rowIndex/*, colIndex*/);
-}
-
-bool DataWriter::queryRetrieveOne(string query, bool &result, int rowIndex = 0/*, int colIndex = 0*/) {
-    return queryRetrieveOneGeneric(query, zeroString, zeroInt, zeroDouble, result, DW_Bool, rowIndex/*, colIndex*/);
 }
