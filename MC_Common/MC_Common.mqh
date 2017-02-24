@@ -31,6 +31,8 @@ class MC_Common {
     template<typename T>
     static int ArrayReserve(T &array[], int reserveSize);
     
+    static int ArrayTsearch(string &array[], string value, int count=-1, int start=0, int direction=MODE_ASCEND, bool caseSensitive=true);
+    
     // string
     static string StringTrim(string inputStr);
     static bool StrToBool(string inputStr);
@@ -63,6 +65,16 @@ int MC_Common::ArrayReserve(T &array[], int reserveSize) {
     ArrayResize(array, size, reserveSize);
     
     return size + reserveSize;
+}
+
+int MC_Common::ArrayTsearch(string &array[], string value, int count=-1, int start=0, int direction=MODE_ASCEND, bool caseSensitive=true) {
+    if(count < 0) { count = ArraySize(array); }
+    
+    for(int i = start; i < count; i++) {
+        if(StringCompare(array[i], value, caseSensitive) == 0) { return i; }
+    }
+
+    return -1;
 }
 
 string MC_Common::StringTrim(string inputStr) {
