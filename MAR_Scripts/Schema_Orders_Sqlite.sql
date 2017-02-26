@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS transactions (uuid TEXT PRIMARY KEY UNIQUE NOT NULL, 
 
 CREATE TABLE IF NOT EXISTS txn_orders (txn_uuid TEXT PRIMARY KEY UNIQUE NOT NULL, symbol TEXT NOT NULL, lots DOUBLE NOT NULL, entry_price DOUBLE NOT NULL, entry_stoploss DOUBLE NOT NULL DEFAULT (0), entry_takeprofit DOUBLE NOT NULL DEFAULT (0));
 
-CREATE TABLE IF NOT EXISTS txn_orders_exit (txn_uuid TEXT PRIMARY KEY UNIQUE NOT NULL, exit_datetime DATETIME NOT NULL, exit_price DOUBLE NOT NULL, exit_stoploss DOUBLE NOT NULL DEFAULT (0), exit_takeprofit DOUBLE NOT NULL DEFAULT (0), exit_comment TEXT);
+CREATE TABLE IF NOT EXISTS txn_orders_exit (txn_uuid TEXT PRIMARY KEY UNIQUE NOT NULL, exit_datetime DATETIME NOT NULL, exit_lots DOUBLE, exit_price DOUBLE NOT NULL, exit_stoploss DOUBLE NOT NULL DEFAULT (0), exit_takeprofit DOUBLE NOT NULL DEFAULT (0), exit_comment TEXT);
 
 CREATE TABLE IF NOT EXISTS act_equity (uuid TEXT PRIMARY KEY UNIQUE NOT NULL, act_uuid TEXT NOT NULL, record_datetime DATETIME NOT NULL, leverage INTEGER, margin_so_mode INTEGER, margin_so_call DOUBLE, margin_so_so DOUBLE, balance DOUBLE, equity DOUBLE, credit DOUBLE, margin DOUBLE);
 
-CREATE TABLE IF NOT EXISTS txn_orders_equity (txn_uuid TEXT NOT NULL, eqt_uuid TEXT NOT NULL, price DOUBLE, stoploss DOUBLE, takeprofit DOUBLE, gross DOUBLE, comment TEXT, primary key (txn_uuid, eqt_uuid));
+CREATE TABLE IF NOT EXISTS txn_orders_equity (txn_uuid TEXT NOT NULL, eqt_uuid TEXT NOT NULL, lots DOUBLE, price DOUBLE, stoploss DOUBLE, takeprofit DOUBLE, commission DOUBLE, swap DOUBLE, gross DOUBLE, PRIMARY KEY (txn_uuid, eqt_uuid));

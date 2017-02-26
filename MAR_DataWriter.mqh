@@ -424,6 +424,8 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
         return false;
     }
     
+    MC_Error::PrintInfo(ErrorInfo, "Attempting query", FunctionTrace, query);
+    
     int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
     int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
     string allRows[][1];
@@ -436,8 +438,9 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
             for(i = 0; sqlite_next_row(queryHandle) == 1; i++) {
                 if(i == rowIndex) {
                     for (j = 0; j < cols[0]; j++) {
-                        if(j == colIndex) { 
-                            dbResult = sqlite_get_col(queryHandle, i); 
+                        if(j == colIndex) {
+                            // todo: how to handle errors??? 
+                            dbResult = sqlite_get_col(queryHandle, j); 
                             returnResult = true;
                             break;
                         }
