@@ -102,3 +102,5 @@ bool ResourceStore::getTextResource(string fileName, string &dataOut[]) {
     }
     else { return false; }
 }
+
+ResourceStore *ResourceMan;

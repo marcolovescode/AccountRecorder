@@ -10,14 +10,14 @@
 
 const string Account_Sqlite[] = 
 {
-"INSERT INTO accounts(guid, num, name)",
-"SELECT {guid}, {accountNum}, '{accountNum}'",
+"INSERT INTO accounts(uuid, num, name)",
+"SELECT {uuid}, {accountNum}, '{accountNum}'",
 "WHERE NOT EXISTS(",
 "select num from accounts where num={accountNum}",
 ")",
 ";",
 "",
-"select guid from accounts where num={accountNum};",
+"select uuid from accounts where num={accountNum};",
 ""
 };
 

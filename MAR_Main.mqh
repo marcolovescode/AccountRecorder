@@ -10,6 +10,8 @@
 
 //#define _LOCALRESOURCE
 
+#include "MC_Common/MC_Resource.mqh"
+
 #ifdef _LOCALRESOURCE
     #include "MAR_Scripts/MAR_Scripts.mqh"
 #endif
@@ -20,17 +22,461 @@
 class MainAccountRecorder {
     private:
     DataWriterManager *dWriterMan;
+    bool setupConnections();
+    bool setupSchema();
+    bool setupAccountRecords();
+    
+    string uuidAccount;
+    string uuidCurrency;
+    
+    datetime lastOrderTime;
+    datetime lastEquityTime;
+    
+    bool firstWeekendNoticeFired;
     
     public:
     void MainAccountRecorder();
     void ~MainAccountRecorder();
+    void doCycle(bool ignoreWeekendRules = false);
+    bool recordOrder(string &orderUuidOut, bool recordElectionIfEnabled = true);
+    bool recordOrderEquity(string equityUuid);
+    bool recordOrderSplits(string orderUuid);
+    bool recordOrderExit(string orderUuid);
+    bool recordOrderElection(string orderUuid);
+    void updateOrders();
+    void updateEquity();
+    void doFirstRun();
 };
 
 void MainAccountRecorder::MainAccountRecorder() {
     dWriterMan = new DataWriterManager();
+    setupConnections();
+}
+
+void MainAccountRecorder::doFirstRun() {
+    AccountMan.setupSchema();
+    AccountMan.setupAccountRecords();
+    AccountMan.doCycle(true);
+    MC_Error::PrintInfo(ErrorInfo, "First run complete", FunctionTrace);
+}
+
+bool MainAccountRecorder::setupConnections() {
+    //int loc;
+    
+    if(EnableSqlite) {
+        dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, true, SlOrderDbPath);
+    }
+    
+    if(EnablePostgres) {
+        dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, true, PgConnectOrderString);
+    }
+    
+    if(EnableMysql) {
+        dWriterMan.addDataWriter(DW_Mysql, ConnectRetries, ConnectRetryDelaySecs, true, 
+            MyHost, MyUser, MyPass, MyOrderDbName, MyPort, MySocket, MyClientFlags);
+    }
+    
+    return true;
+}
+
+bool MainAccountRecorder::setupSchema() {
+    string scriptSrc[];
+
+    if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
+        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, UseAllWriters);
+    }
+
+    if(EnablePostgres && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Postgres.sql", scriptSrc)) {
+        dWriterMan.scriptRun(scriptSrc, DW_Postgres, -1, UseAllWriters);
+    }
+
+    if(EnableMysql && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Mysql.sql", scriptSrc)) {
+        dWriterMan.scriptRun(scriptSrc, DW_Mysql, -1, UseAllWriters);
+    }
+
+    return true;
+}
+
+bool MainAccountRecorder::setupAccountRecords() {
+    if(!IsConnected()) {
+        MC_Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace);
+        return false;
+    }
+    
+    int actNum = AccountInfoInteger(ACCOUNT_LOGIN);
+    int actMode = AccountInfoInteger(ACCOUNT_TRADE_MODE);
+    string actName = AccountInfoString(ACCOUNT_NAME);
+    string curName = AccountInfoString(ACCOUNT_CURRENCY);
+    string actServer = AccountInfoString(ACCOUNT_SERVER);
+    string actCompany = AccountInfoString(ACCOUNT_COMPANY);
+    
+    if(actNum <= 0 || StringLen(curName) < 1) {
+        MC_Error::ThrowError(ErrorNormal, "Cannot get account number or currency name", FunctionTrace, actNum +"|" + curName);
+        return false;
+    }
+    
+    if(!dWriterMan.queryRetrieveOne(
+        StringFormat("select uuid from currency where name='%s';", curName)
+        , uuidCurrency)
+        ) {
+        uuidCurrency = MC_Common::GetUuid();
+        
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO currency (uuid, name) SELECT '%s', '%s' WHERE NOT EXISTS (select name from currency where name='%s');"
+                , uuidCurrency
+                , curName
+                , curName
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create identifying currency record", FunctionTrace);
+        }
+    }
+    
+    if(!dWriterMan.queryRetrieveOne(
+        StringFormat("select uuid from accounts where num='%i';", actNum)
+        , uuidAccount)
+        ) {
+        uuidAccount = MC_Common::GetUuid();
+        
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO accounts (uuid, cny_uuid, num, mode, name, server, company) SELECT '%s', '%s', '%i', '%i', '%s', '%s', '%s' WHERE NOT EXISTS (select num from accounts where num='%i');"
+                , uuidAccount
+                , uuidCurrency
+                , actNum
+                , actMode
+                , actName
+                , actServer
+                , actCompany
+                , actNum
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create identifying account record", FunctionTrace);
+        }
+    }
+    
+    return true;
 }
 
 void MainAccountRecorder::~MainAccountRecorder() {
     if(CheckPointer(dWriterMan) == POINTER_DYNAMIC) { delete(dWriterMan); }
 }
 
+void MainAccountRecorder::doCycle(bool force = false) {
+    datetime currentTimerTime = TimeLocal();
+    
+    if(SkipWeekends) {
+        if(MC_Common::IsDatetimeInRange(currentTimerTime, EndWeekday, EndWeekdayHour, StartWeekday, StartWeekdayHour)) {
+            if(!firstWeekendNoticeFired) {
+                MC_Error::PrintInfo(ErrorInfo, "Weekend has started, running cycle once before trading week starts again.", FunctionTrace);
+                firstWeekendNoticeFired = true;
+            } else if(!force) { return; }
+        } else {
+            firstWeekendNoticeFired = false;
+        }
+    }
+    
+    if(EnableOrderRecording && (force || (currentTimerTime - lastOrderTime >= OrderRefreshSeconds))) {
+        MC_Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace);
+        updateOrders();
+        lastOrderTime = currentTimerTime;
+    }
+    
+    if(EnableEquityRecording && (force || (currentTimerTime - lastEquityTime >= EquityRefreshSeconds))) {
+        MC_Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace);
+        updateEquity();
+        lastEquityTime = currentTimerTime;
+    }
+    
+    MC_Error::PrintInfo(ErrorInfo, "Cycle completed", FunctionTrace);
+}
+
+bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
+    if(OrderType() > OP_SELL) { 
+        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        return false;
+    }
+    
+    bool finalResult = true;
+    
+    // record splits
+    // todo: these need to be updated periodically. e.g. swap is 0 one day and 3.00 the next
+    // todo: HOW TO KNOW WHETHER TO IGNORE A SPLIT OR UPDATE IT???
+    if(!dWriterMan.queryRun(
+        StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%s', '%s', '%s', '%i', '%i', '%i', '%f');"
+            , MC_Common::GetUuid()
+            , orderUuid
+            , uuidCurrency
+            , -1
+            , 2 // fee
+            , 1 // commission
+            , OrderCommission()
+            )
+        )
+    ) {
+        MC_Error::ThrowError(ErrorNormal, "Could not create order commission split", FunctionTrace, orderUuid);
+        finalResult = false;
+    }
+    
+    if(!dWriterMan.queryRun(
+        StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%s', '%s', '%s', '%i', '%i', '%i', '%f');"
+            , MC_Common::GetUuid()
+            , orderUuid
+            , uuidCurrency
+            , -1
+            , 2 // fee
+            , 2 // swap
+            , OrderSwap()
+            )
+        )
+    ) {
+        MC_Error::ThrowError(ErrorNormal, "Could not create order swap split", FunctionTrace, orderUuid);
+        finalResult = false;
+    }
+    
+    if(!dWriterMan.queryRun(
+        StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%s', '%s', '%s', '%i', '%i', '%i', '%f');"
+            , MC_Common::GetUuid()
+            , orderUuid
+            , uuidCurrency
+            , -1
+            , 1 // gross
+            , -1 // does not apply
+            , OrderProfit() // does not include fee or swap (or taxes -- NOTE: MQL4 DOES NOT EXPOSE TAX EXPENSE)
+            )
+        )
+    ) {
+        MC_Error::ThrowError(ErrorNormal, "Could not create order withdrawal split", FunctionTrace, orderUuid);
+        finalResult = false;
+    }
+    
+    return finalResult;
+}
+
+bool MainAccountRecorder::recordOrderElection(string orderUuid) {
+    if(OrderType() > OP_SELL) { 
+        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        return false;
+    }
+    
+    if(RecordOrderElection) {
+        // todo: is orderUuid in elections?
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO elections (uuid, txn_uuid, type, active, made_datetime, recorded_datetime) VALUES ('%s', '%s', '%i', '%i', '%s', '%s');"
+                , MC_Common::GetUuid()
+                , orderUuid
+                , ElectionId
+                , 1 // true
+                , MC_Common::GetSqlDatetime(TimeLocal(), true)
+                , MC_Common::GetSqlDatetime(TimeLocal(), true) // todo: sql trigger instead?
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create order withdrawal split", FunctionTrace, orderUuid);
+            return false;
+        }
+        
+        return true;
+    } 
+    else { return false; }
+}
+
+bool MainAccountRecorder::recordOrderExit(string orderUuid) {
+    if(OrderType() > OP_SELL) { 
+        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        return false;
+    }
+
+    // record txn_orders_exit
+    if(OrderCloseTime() > 0) {
+        // todo: is orderUuid in txn_orders_exit?
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO txn_orders_exit (txn_uuid, exit_datetime, exit_price, exit_stoploss, exit_takeprofit, exit_comment) VALUES ('%s', '%s', '%f', '%f', '%f', '%s');"
+                , orderUuid
+                , MC_Common::GetSqlDatetime(OrderCloseTime(), true, BrokerTimeZone)
+                , OrderClosePrice()
+                , OrderStopLoss()
+                , OrderTakeProfit()
+                , OrderComment() // sometimes comment will be overwritten by stopout notes
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create order-specific exit record", FunctionTrace, orderUuid);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionIfEnabled = true) {
+    // Assumes OrderSelect was already called
+    string orderUuid = "";
+    int orderTypeId = OrderType();
+    int orderNum = OrderTicket();
+    string orderCom = OrderComment();
+    
+    if(orderTypeId > OP_SELL && orderTypeId < 6) { return false; } // ignore buy/sell stops and limits. todo: how to handle?
+    
+    if(!dWriterMan.queryRetrieveOne(
+        StringFormat("select uuid from transactions where num='%i';", orderNum)
+        , orderUuid)
+    ) {
+        orderUuid = MC_Common::GetUuid();
+        
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO transactions (uuid, act_uuid, type, num, comment, magic, entry_datetime) SELECT '%s', '%s', '%i', '%i', '%s', '%i', '%s' WHERE NOT EXISTS (select num from transactions where num='%i');"
+                , orderUuid
+                , uuidAccount
+                , orderTypeId
+                , orderNum
+                , orderCom
+                , OrderMagicNumber()
+                , MC_Common::GetSqlDatetime(OrderOpenTime(), true, BrokerTimeZone)
+                , orderNum
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace, orderNum);
+            orderUuidOut = "";
+            return false;
+        }
+    }
+        
+    // todo: handle partial lot closes?
+    // is the original order modified, or new orders created?
+    if(orderTypeId <= OP_SELL) {
+        // record txn_orders
+        // todo: check for existing orderUuid in txn_orders first
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO txn_orders (txn_uuid, symbol, lots, entry_price, entry_stoploss, entry_takeprofit) VALUES ('%s', '%s', '%f', '%f', '%f', '%f');"
+                , orderUuid
+                , OrderSymbol()
+                , OrderLots()
+                , OrderOpenPrice()
+                , OrderStopLoss()
+                , OrderTakeProfit()
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create order-specific record", FunctionTrace, orderUuid);
+        }
+        
+        recordOrderExit(orderUuid);
+        
+        recordOrderSplits(orderUuid);
+        
+        // todo: Also perform this for pending orders?
+        if(recordElectionIfEnabled) { recordOrderElection(orderUuid); }
+    } else if(orderTypeId >= 6) { // balance transaction, undocumented https://www.mql5.com/en/forum/134197
+        // todo: is orderUuid in splits?
+        if(!dWriterMan.queryRun(
+            StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%s', '%s', '%s', '%i', '%i', '%i', '%f');"
+                , MC_Common::GetUuid()
+                , orderUuid
+                , uuidCurrency
+                , -1
+                , 3 // adjustment
+                , orderCom == "Deposit" ? 4 : orderCom == "Withdrawal" ? 5 : -1
+                , OrderProfit() // is adjustment amount in this case
+                )
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not create balance split", FunctionTrace, orderUuid);
+        }
+    }
+    
+    orderUuidOut = orderUuid;
+    return true;
+}
+
+bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
+    // Assumes OrderSelect was already called
+    string orderUuid = "";
+    int orderNum = OrderTicket();
+    
+    if(!recordOrder(orderUuid)) {
+        MC_Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace);
+    }
+    
+    // todo: should lots be recorded in equity? how about comments?
+    // partial closes: are lots modified, or are new tickets created?
+    // comments -- record only if there is a change? record always? not at all?
+    // recordd spread? probably not
+    
+    // order current price: https://www.mql5.com/en/forum/102462
+    // buy orders will be closed at Bid, so Bid-OrderOpenPrice() 
+    // sell orders at Ask, so OrderOpenPrice()-Ask
+    // alt: what is mode_tickvalue?  OrderProfit() - OrderCommision() ) / OrderLots() / MarketInfo( OrderSymbol(), MODE_TICKVALUE
+    
+    if(!dWriterMan.queryRun(
+        StringFormat("INSERT INTO txn_orders_equity (txn_uuid, eqt_uuid, price, stoploss, takeprofit, gross) VALUES ('%s', '%s', '%f', '%f', '%f', '%f');"
+            , orderUuid
+            , equityUuid
+            , OrderType() == OP_SELL ? MarketInfo(OrderSymbol(), MODE_ASK) : MarketInfo(OrderSymbol(), MODE_BID)
+            , OrderStopLoss()
+            , OrderTakeProfit()
+            , OrderProfit()
+//            , OrderComment()
+            )
+        )
+    ) {
+        MC_Error::ThrowError(ErrorNormal, "Could not create order equity entry", FunctionTrace, orderUuid);
+    }
+    
+    return true;
+}
+
+void MainAccountRecorder::updateOrders() {
+    string orderUuid;
+    
+    int orderCount = OrdersTotal();
+    for(int i = 0; i < orderCount; i++) {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
+        if(OrderType() > OP_SELL) { continue; } // is a pending order, then continue
+        
+        recordOrder(orderUuid);
+    }
+    
+    orderCount = OrdersHistoryTotal();
+    for(int i = 0; i < orderCount; i++) {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) { continue; }
+        if(OrderType() > OP_SELL) { continue; } // is a pending order, then continue
+        
+        recordOrder(orderUuid);
+    }
+}
+
+void MainAccountRecorder::updateEquity() {
+    string equityUuid = MC_Common::GetUuid();
+    
+    if(!dWriterMan.queryRun(
+        StringFormat("INSERT INTO act_equity (uuid, act_uuid, record_datetime, leverage, margin_so_mode, margin_so_call, margin_so_so, balance, equity, credit, margin) VALUES ('%s', '%s', '%s', '%i', '%i', '%f', '%f', '%f', '%f', '%f', '%f');"
+            , equityUuid
+            , uuidAccount
+            , MC_Common::GetSqlDatetime(TimeLocal(), true)
+            , AccountInfoInteger(ACCOUNT_LEVERAGE)
+            , AccountInfoInteger(ACCOUNT_MARGIN_SO_MODE)
+            , AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL)
+            , AccountInfoDouble(ACCOUNT_MARGIN_SO_SO)
+            , AccountInfoDouble(ACCOUNT_BALANCE)
+            , AccountInfoDouble(ACCOUNT_EQUITY)
+            , AccountInfoDouble(ACCOUNT_CREDIT)
+            , AccountInfoDouble(ACCOUNT_MARGIN)
+            )
+        )
+    ) {
+        MC_Error::ThrowError(ErrorNormal, "Could not record account equity", FunctionTrace);
+    }
+    
+    int orderCount = OrdersTotal();
+    for(int i = 0; i < orderCount; i++) {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
+        if(OrderType() > OP_SELL) { continue; } // is a pending order, then continue
+        
+        recordOrderEquity(equityUuid);
+    }
+}
+
+MainAccountRecorder *AccountMan;

@@ -12,18 +12,18 @@
 
 class DataWriterManager {
     private:
-    DataWriter *dWriters[];
     int dwCsvIds[];
     
     public:
     ~DataWriterManager();
     
     int addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
+    DataWriter *dWriters[];
     
     bool hasCsv();
     
     void removeDataWriter(int index);
-    void removeAllDataWriters();
+    void removeAllDataWriters(bool closeGlobal = false);
     
     bool queryRunByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     bool queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
@@ -36,10 +36,19 @@ class DataWriterManager {
 
     template<typename T>
     bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+
+    bool scriptRunByIndex(int index, string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool scriptRun(string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
+    
+//    bool scriptRetrieveRowsByIndex();
+//    bool scriptRetrieveRows();
+//    
+//    bool scriptRetrieveOneByIndex();
+//    bool scriptRetrieveOne();
 };
 
 void DataWriterManager::~DataWriterManager() {
-    removeAllDataWriters();
+    removeAllDataWriters(true);
 }
 
 bool DataWriterManager::hasCsv() {
@@ -61,9 +70,10 @@ void DataWriterManager::removeDataWriter(int index) {
     if(CheckPointer(dWriters[index]) == POINTER_DYNAMIC) { delete(dWriters[index]); }
 }
 
-void DataWriterManager::removeAllDataWriters() {
+void DataWriterManager::removeAllDataWriters(bool closeGlobal = false) {
     int dWritersLength = ArraySize(dWriters);
     for(int i = 0; i < dWritersLength; i++) {
+        dWriters[i].closeConnection(closeGlobal);
         removeDataWriter(i);
     }
     
@@ -123,11 +133,48 @@ template<typename T>
 bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
     int dWritersLength = ArraySize(dWriters);
     
-    bool callResult;
+    bool callResult; T queryResult;
     for(int i = 0; i < dWritersLength; i++) {
-        callResult = queryRetrieveOneByIndex(i, query, result, rowIndex, forDbType, ignoreDbType);
-        if(callResult) { return true; }
+        callResult = queryRetrieveOneByIndex(i, query, queryResult, rowIndex, forDbType, ignoreDbType);
+        if(callResult) { 
+            result = queryResult; 
+            return true; 
+        }
     }
 
     return false;
+}
+
+bool DataWriterManager::scriptRunByIndex(int index,string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+    if(forDbType > -1 && forDbType != dWriters[index].dbType) { return false; }
+    if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return false; }
+    
+    int scriptLines = ArraySize(scriptSrc);
+    string query = ""; string subclause = ""; bool finalResult = false;
+    
+    for(int i = 0; i < scriptLines; i++) {
+        subclause = MC_Common::StringTrim(scriptSrc[i]);
+        
+        if(StringLen(subclause) > 0) { query += " " + subclause; }
+        if(StringFind(query, ";", StringLen(query)-1) > 0) {
+            if(dWriters[index].queryRun(query)) { finalResult = true; }
+            query = "";
+        }
+        
+    }
+    
+    return finalResult;
+}
+
+bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1,bool doAll=false) {
+    int dWritersLength = ArraySize(dWriters);
+    
+    bool callResult; bool finalResult;
+    for(int i = 0; i < dWritersLength; i++) {
+        callResult = scriptRunByIndex(i, scriptSrc, forDbType, ignoreDbType);
+        if(callResult) { finalResult = true; }
+        if(!doAll && finalResult) { return true; }
+    }
+
+    return finalResult;
 }

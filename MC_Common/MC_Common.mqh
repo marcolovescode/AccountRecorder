@@ -44,13 +44,19 @@ class MC_Common {
     
     //uuid
     static string GetUuid();
+    
+    static int GetGcd(int a, int b);
+    
+    static bool IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour);
+    
+    static string GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/);
 };
 
 template<typename T>
 int MC_Common::ArrayPush(T &array[], T unit) {
     int size;
     
-    ArraySize(array);
+    size = ArraySize(array);
     ArrayResize(array, size+1);
     array[size] = unit;
     
@@ -61,7 +67,7 @@ template<typename T>
 int MC_Common::ArrayReserve(T &array[], int reserveSize) {
     int size;
     
-    ArraySize(array);
+    size = ArraySize(array);
     ArrayResize(array, size, reserveSize);
     
     return size + reserveSize;
@@ -158,6 +164,13 @@ StringType MC_Common::GetStringType(string test) {
     else return Type_Symbol;
 }
 
+// http://cs.stackexchange.com/questions/1447/what-is-most-efficient-for-gcd
+int MC_Common::GetGcd(int a, int b)
+{
+    while(b) b ^= a ^= b ^= a %= b;
+    return a;
+}
+
 // https://github.com/femtotrader/rabbit4mt4/blob/master/emit/MQL4/Include/uuid.mqh
 //http://en.wikipedia.org/wiki/Universally_unique_identifier
 //RFC 4122
@@ -205,3 +218,48 @@ string MC_Common::GetUuid()
    return (id);
   }
 //+------------------------------------------------------------------+
+
+bool MC_Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour) {
+    int fixedEndDayOfWeek = endDayOfWeek;
+    int currentDayOfWeek = TimeDayOfWeek(subject);
+    int currentHour = TimeHour(subject);
+    if(endDayOfWeek < startDayOfWeek) { fixedEndDayOfWeek += 7; }
+    
+    return currentDayOfWeek == startDayOfWeek ? currentHour >= startHour
+        : currentDayOfWeek == endDayOfWeek ? currentHour < endHour
+        : currentDayOfWeek > startDayOfWeek && currentDayOfWeek < fixedEndDayOfWeek
+        ;
+}
+
+string MC_Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/) {
+    // todo: microseconds?
+    
+    string result = TimeToStr(source, TIME_DATE|TIME_MINUTES|TIME_SECONDS);
+    
+    // Format: yyyy/mm/dd hh:mm:ss[-+]xx:xx (timezone)
+    // replace first .'s with //
+    StringReplace(result, ".", "/");
+    
+    double timeOffsetNum=0;
+    if(appendTimeOffset) {
+        /*if(calcBrokerOffset) {
+            // attempt autocalc first, if fail, then fallback on supplied time offset
+            // which may be empty. if it's empty, nothing is added to string -- timestamp passed
+            // without offset
+            
+            // E.g. if difference between TimeCurrent and TimeLocal is less than one minute, then drop the seconds and do TimeCurrent-TimeGMT to calc offset
+        } else */
+        if(StringLen(timeOffset) <= 0) {
+            timeOffsetNum = (TimeLocal()-TimeGMT())/3600;
+            
+            result += StringFormat("%+03.f:%02.f"
+                , MathFloor(timeOffsetNum)
+                , MathAbs((timeOffsetNum-MathFloor(timeOffsetNum))*60)
+                );
+        }
+        else { result += timeOffset; }
+        
+    }
+    
+    return result;
+}
