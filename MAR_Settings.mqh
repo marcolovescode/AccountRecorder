@@ -9,6 +9,7 @@
 //+------------------------------------------------------------------+
 input int DebugLevel = 3; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info
 input string TimingOptions = "-------------------- Timing --------------------";
+input int DelayedEntrySeconds = 10;
 input int OrderRefreshSeconds = 60;
 input int EquityRefreshSeconds = 300;
 input bool SkipIfDisconnected = true;

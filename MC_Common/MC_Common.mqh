@@ -238,7 +238,7 @@ string MC_Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, s
     
     // Format: yyyy/mm/dd hh:mm:ss[-+]xx:xx (timezone)
     // replace first .'s with //
-    StringReplace(result, ".", "/");
+    StringReplace(result, ".", "-");
     
     double timeOffsetNum=0;
     if(appendTimeOffset) {

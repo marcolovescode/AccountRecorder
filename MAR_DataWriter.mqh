@@ -424,8 +424,6 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
         return false;
     }
     
-    MC_Error::PrintInfo(ErrorInfo, "Attempting query", FunctionTrace, query);
-    
     int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
     int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
     string allRows[][1];

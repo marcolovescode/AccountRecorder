@@ -43,7 +43,8 @@ int OnInit() {
     
     AccountMan = new MainAccountRecorder();
     
-    EventSetMillisecondTimer(500);
+    if(DelayedEntrySeconds > 0) { EventSetTimer(DelayedEntrySeconds); }
+    else { EventSetMillisecondTimer(255); }
     
     return INIT_SUCCEEDED;
 }
