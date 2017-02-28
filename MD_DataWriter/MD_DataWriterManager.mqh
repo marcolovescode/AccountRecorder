@@ -7,8 +7,8 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 //+------------------------------------------------------------------+
-#include "MAR_DataWriter.mqh"
-#include "MC_Common/MC_Common.mqh"
+#include "MD_DataWriter.mqh"
+#include "../MC_Common/MC_Common.mqh"
 
 class DataWriterManager {
     private:

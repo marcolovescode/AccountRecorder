@@ -54,7 +54,7 @@ enum ExecStatusType
 };
  
 
-#import "MAR_Library/libpq.dll"
+#import "MD_DataWriter/libpq.dll"
 //extern PGconn *PQconnectdb(const char *conninfo);
 int PQconnectdb(uchar & conninfo[]);
 //extern void PQfinish(PGconn *conn);

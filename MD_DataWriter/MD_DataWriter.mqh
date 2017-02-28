@@ -9,11 +9,11 @@
 //+------------------------------------------------------------------+
 #define _MariaDB
 
-#include "MC_Common/MC_Common.mqh"
-#include "MC_Common/MC_Error.mqh"
-#include "MAR_Library/sqlite.mqh"
-#include "MAR_Library/mql4-mysql.mqh"
-#include "MAR_Library/mql4-postgresql.mqh"
+#include "../MC_Common/MC_Common.mqh"
+#include "../MC_Common/MC_Error.mqh"
+#include "depends/sqlite.mqh"
+#include "depends/mql4-mysql.mqh"
+#include "depends/mql4-postgresql.mqh"
 
 const int MysqlDefaultPort = 3306;
 

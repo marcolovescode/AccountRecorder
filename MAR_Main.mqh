@@ -16,7 +16,7 @@
     #include "MAR_Scripts/MAR_Scripts.mqh"
 #endif
 
-#include "MAR_DataWriterManager.mqh"
+#include "MD_DataWriter/MD_DataWriterManager.mqh"
 #include "MAR_Settings.mqh"
 
 class MainAccountRecorder {

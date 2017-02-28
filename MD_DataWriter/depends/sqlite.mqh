@@ -2,7 +2,7 @@
  * SQLite interface for MT4
  */
 
-#import "MAR_Library/sqlite3_wrapper.dll"
+#import "MD_DataWriter/sqlite3_wrapper.dll"
 int sqlite_initialize (string terminal_data_path);
 void sqlite_finalize ();
 

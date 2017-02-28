@@ -31,7 +31,7 @@
 #import
 
 #ifdef _MariaDB
-    #import "MAR_Library/libmariadb.dll"
+    #import "MD_DataWriter/libmariadb.dll"
     int     mysql_init          (int dbConnectId);
     int     mysql_errno         (int dbConnectId);
     int     mysql_error         (int dbConnectId);
