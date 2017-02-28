@@ -50,6 +50,9 @@ class MC_Common {
     static bool IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour);
     
     static string GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/);
+    
+    static bool EventSetTimerReliable(int seconds);
+    static bool EventSetMillisecondTimerReliable(int milliseconds);
 };
 
 template<typename T>
@@ -262,4 +265,32 @@ string MC_Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, s
     }
     
     return result;
+}
+
+bool MC_Common::EventSetTimerReliable(int seconds) {
+    int delayMilliseconds = 255;
+    int delayRetries = 5;
+    
+    for(int attempts = 0; attempts < delayRetries; attempts++) {
+        if(!EventSetTimer(seconds)) {
+            Sleep(delayMilliseconds);
+            continue;
+        } else { return true; }
+    }
+    
+    return false;
+}
+
+bool MC_Common::EventSetMillisecondTimerReliable(int milliseconds) {
+    int delayMilliseconds = 255;
+    int delayRetries = 5;
+    
+    for(int attempts = 0; attempts < delayRetries; attempts++) {
+        if(!EventSetMillisecondTimer(milliseconds)) {
+            Sleep(delayMilliseconds);
+            continue;
+        } else { return true; }
+    }
+    
+    return false;
 }
