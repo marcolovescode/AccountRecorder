@@ -15,6 +15,7 @@ class CSQLite3Base
    sqlite3_p64       m_db;             // pointer to database file
    bool              m_bopened;        // flag "Is m_db handle valid"
    string            m_dbfile;         // path to database file
+   string            m_lasterrormsg;   // last error to return when disconnected
 
 public:
                      CSQLite3Base();   // constructor
@@ -40,7 +41,7 @@ public:
    int               Query(string query); // for ex.: INSERT INTO <table>(roll,name,cgpa) VALUES (4,'uuu',6.6)
    int               Query(CSQLite3Table &tbl,string query); // for ex.: SELECT * FROM <table> WHERE (a>100)
    int               QueryBind(CSQLite3Row &row,string query); // UPDATE <table> SET <row>=?, <row>=? WHERE (cond)
-   int               Exec(string query);
+   int               Exec(string query, bool disconnectAfter = false);
    int               Transact(string &query[]);
    int               TransactBind(CSQLite3Table &tbl,string query);
   };
@@ -103,18 +104,22 @@ int CSQLite3Base::Reconnect()
 //+------------------------------------------------------------------+
 string CSQLite3Base::ErrorMsg()
   {
-   PTR64 pstr=::sqlite3_errmsg(m_db);  // get message string
-   int len=::strlen(pstr);             // length of string
-   uchar str[];
-   ArrayResize(str,len+1);            // prepare buffer
-   ::strcpy(str,pstr);                // read string to buffer
-   return(CharArrayToString(str));    // return string
+   if(IsConnected()) {
+       PTR64 pstr=::sqlite3_errmsg(m_db);  // get message string
+       int len=::strlen(pstr);             // length of string
+       uchar str[];
+       ArrayResize(str,len+1);            // prepare buffer
+       ::strcpy(str,pstr);                // read string to buffer
+       m_lasterrormsg = CharArrayToString(str);
+   }
+   return(m_lasterrormsg);    // return string
   }
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
 bool CSQLite3Base::BindStatement(sqlite3_stmt_p64 stmt,int column,CSQLite3Cell &cell)
   {
+  // todo: Disconnect calls?
    if(!stmt || column<0)
       return(false);
    int bytes=cell.buf.Len();
@@ -133,6 +138,7 @@ bool CSQLite3Base::BindStatement(sqlite3_stmt_p64 stmt,int column,CSQLite3Cell &
 //+------------------------------------------------------------------+
 bool CSQLite3Base::ReadStatement(sqlite3_stmt_p64 stmt,int column,CSQLite3Cell &cell)
   {
+  // todo: Disconnect calls?
    cell.Clear();
    if(!stmt || column<0)
       return(false);
@@ -174,11 +180,13 @@ int CSQLite3Base::Query(string query)
   {
 //--- check connection
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
 //--- check query string
-   if(StringLen(query)<=0)
+   if(StringLen(query)<=0) {
+      Disconnect();
       return(SQLITE_DONE);
+   }
    sqlite3_stmt_p64 stmt=0; // variable for pointer
 //--- get pointer
    PTR64 pstmt=::memcpy(stmt,stmt,0);
@@ -186,28 +194,39 @@ int CSQLite3Base::Query(string query)
    StringToCharArray(query,str);
 //--- prepare statement and check result
    int res=::sqlite3_prepare(m_db,str,-1,pstmt,NULL);
-   if(res!=SQLITE_OK)
+   if(res!=SQLITE_OK) {
+      ErrorMsg(); // log into lasterrormsg
+      Disconnect();
       return(res);
+   }
 //--- execute
    res=::sqlite3_step(pstmt);
 //--- clean
    ::sqlite3_finalize(pstmt);
+   Disconnect();
 //--- return result
    return(res);
   }
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-int CSQLite3Base::Exec(string query)
+int CSQLite3Base::Exec(string query, bool disconnectAfter = false)
   {
+  // todo: should this have a disconnect call?
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
-   if(StringLen(query)<=0)
+   if(StringLen(query)<=0) {
+      if(disconnectAfter) { Disconnect(); }
       return(SQLITE_DONE);
+   }
    uchar str[];
    StringToCharArray(query,str);
    int res=::sqlite3_exec(m_db,str,NULL,NULL,NULL);
+   if(disconnectAfter) {
+       if(res!=SQLITE_OK) { ErrorMsg(); }
+       Disconnect();
+   }
    return(res);
   }
 //+------------------------------------------------------------------+
@@ -218,11 +237,13 @@ int CSQLite3Base::Query(CSQLite3Table &tbl,string query)
    tbl.Clear();
 //--- check connection
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
 //--- check query string
-   if(StringLen(query)<=0)
+   if(StringLen(query)<=0) {
+      Disconnect();
       return(SQLITE_DONE);
+   }
 //---
    sqlite3_stmt_p64 stmt=NULL;
    PTR64 pstmt=::memcpy(stmt,stmt,0);
@@ -251,6 +272,8 @@ int CSQLite3Base::Query(CSQLite3Table &tbl,string query)
       tbl.ColumnName(i,CharArrayToString(str));
      }
    ::sqlite3_finalize(stmt); // clean
+   if(!b) { ErrorMsg(); }
+   Disconnect();
    return(b?SQLITE_DONE:res); // return result code
   }
 //+------------------------------------------------------------------+
@@ -258,8 +281,9 @@ int CSQLite3Base::Query(CSQLite3Table &tbl,string query)
 //+------------------------------------------------------------------+
 int CSQLite3Base::QueryBind(CSQLite3Row &row,string query) // UPDATE <table> SET <row>=?, <row2>=?  WHERE (cond)
   {
+  // TODO: Disconnect calls?
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
 //---
    if(StringLen(query)<=0 || ArraySize(row.m_data)<=0)
@@ -293,25 +317,33 @@ int CSQLite3Base::QueryBind(CSQLite3Row &row,string query) // UPDATE <table> SET
 int CSQLite3Base::Transact(string &query[])
   {
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
-   if(ArraySize(query)<=0)
+   if(ArraySize(query)<=0) {
+      Disconnect();
       return(SQLITE_DONE);
+   }
 
    int res=Exec("BEGIN");
 //--- create transaction
-   if(res!=SQLITE_OK)
+   if(res!=SQLITE_OK) {
+      ErrorMsg();
+      Disconnect();
       return(res);
+   }
    for(int i=0; i<ArraySize(query); i++)
      {
       res=Exec(query[i]);
       if(res!=SQLITE_DONE)
         {
+         ErrorMsg();
          Exec("ROLLBACK");
+         Disconnect();
          return(res);
         }
      }
    Exec("COMMIT");
+   Disconnect();
    return(SQLITE_DONE);
   }
 //+------------------------------------------------------------------+
@@ -320,7 +352,7 @@ int CSQLite3Base::Transact(string &query[])
 int CSQLite3Base::TransactBind(CSQLite3Table &tbl,string query)
   {
    if(!IsConnected())
-      if(!Reconnect())
+      if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
    if(StringLen(query)<=0 || ArraySize(tbl.m_data)<=0)
       return(SQLITE_DONE);

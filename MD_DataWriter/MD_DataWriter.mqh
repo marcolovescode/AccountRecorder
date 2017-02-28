@@ -281,8 +281,8 @@ bool DataWriter::queryRun(string dataInput) {
     int result; bool bResult; string fileContents;
     switch(dbType) {
         case DW_Sqlite: // param = file path
-            result = sqlite.Exec(dataInput); // extra "" fixes mt4 build 640 dll param corruption
-            if (result != 0) { 
+            result = sqlite.Exec(dataInput, true); // extra "" fixes mt4 build 640 dll param corruption
+            if (result != SQLITE_OK) { 
                 handleError(DW_QueryRun, "Sqlite expression failed: " + result + " - " + sqlite.ErrorMsg(), result, FunctionTrace, dataInput); 
                 return false; 
             }
