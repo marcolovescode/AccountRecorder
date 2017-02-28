@@ -22,6 +22,8 @@
    int LocalFree(int); // May need to be changed depending on how the DLL allocates memory
 #import
  
+// SQLite3MQL/depends/memcpy.mqh already one/some these
+/*
 #import "msvcrt.dll"
   // TODO extend/handle 32/64 bit codewise
   int memcpy(char &Destination[], int Source, int Length);
@@ -29,6 +31,8 @@
   int memcpy(int &dst,  int src, int cnt);
   int memcpy(long &dst,  long src, int cnt);  
 #import
+*/
+
 
 #ifdef _MariaDB
     #import "MD_DataWriter/libmariadb.dll"
@@ -171,22 +175,22 @@ int MySQL_FetchArray(int dbConnectId, string query, string & data[][]){
     }
     
     ArrayResize(data, num_rows);
-    
+    int callResult = 0; int source = 0;
     for ( int i = 0; i < num_rows; i++ ) {
     
       int row_ptr = mysql_fetch_row(resultStruct);
       int len_ptr = mysql_fetch_lengths(resultStruct);
       
       for ( int j = 0; j < num_fields; j++ ) {
-         int leng;
-         memcpy(leng, len_ptr + j*sizeof(int), sizeof(int));
+         int leng; source = len_ptr + j*sizeof(int);
+         callResult = memcpy(leng, source, (int)(sizeof(int)));
          
          ArrayResize(byte,leng+1);
          ArrayInitialize(byte,0);
          
-         int row_ptr_pos;
-         memcpy(row_ptr_pos, row_ptr + j*sizeof(int), sizeof(int));
-         memcpy(byte, row_ptr_pos, leng);
+         int row_ptr_pos; source = row_ptr + j*sizeof(int);
+         callResult = memcpy(row_ptr_pos, source, (int)(sizeof(int)));
+         callResult = memcpy(byte, row_ptr_pos, leng);
          
          string s = CharArrayToString(byte);
          data[i][j] = s;

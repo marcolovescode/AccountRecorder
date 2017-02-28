@@ -11,7 +11,7 @@
 
 #include "../MC_Common/MC_Common.mqh"
 #include "../MC_Common/MC_Error.mqh"
-#include "depends/sqlite.mqh"
+#include "depends/SQLite3MQL4/SQLite3Base.mqh"
 #include "depends/mql4-mysql.mqh"
 #include "depends/mql4-postgresql.mqh"
 
@@ -36,6 +36,7 @@ enum DataWriterType {
 
 class DataWriter {
     private:
+    CSQLite3Base *sqlite;
     int dbConnectId; // mysql, postgres
     string dbUser;
     string dbPass;
@@ -86,6 +87,8 @@ void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int
     connectRetryDelaySecs = connectRetryDelaySecsIn;
     isInit = false;
     
+    sqlite = new CSQLite3Base();
+    
     if(StringLen(param) > 0) { 
         setParams(param, param2, param3, param4, param5, param6, param7);
         initConnection(initCommon); 
@@ -130,6 +133,7 @@ void DataWriter::setParams(string param="", string param2="", string param3="", 
 
 void DataWriter::~DataWriter() {
     closeConnection();
+    if(CheckPointer(sqlite) == POINTER_DYNAMIC) { delete(sqlite); }
 }
 
 
@@ -139,18 +143,14 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
         setParams(param, param2, param3, param4, param5, param6, param7);
     }
     
-    bool bResult;
+    bool bResult; int iResult;
     switch(dbType) {
         case DW_Sqlite: // param = file path
-            if(initCommon) {
-                if(!sqlite_init()) {
-                    MC_Error::ThrowError(ErrorNormal, "SQLite failed init", FunctionTrace);
-                    return false;
-                }
+            iResult = sqlite.Connect(filePath);
+            if(iResult != SQLITE_OK) {
+                MC_Error::ThrowError(ErrorNormal, "SQLite failed init: " + iResult + " - " + sqlite.ErrorMsg(), FunctionTrace);
+                return false;
             }
-
-            // open file path?
-            
             isInit = true;
             return true;
 
@@ -190,7 +190,7 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
 void DataWriter::closeConnection(bool deinitCommon = false) {
     switch(dbType) {
         case DW_Sqlite:
-            if(deinitCommon) { sqlite_finalize(); }
+            sqlite.Disconnect();
             break;
         
         case DW_Mysql:
@@ -281,9 +281,9 @@ bool DataWriter::queryRun(string dataInput) {
     int result; bool bResult; string fileContents;
     switch(dbType) {
         case DW_Sqlite: // param = file path
-            result = sqlite_exec(filePath, dataInput + ""); // extra "" fixes mt4 build 640 dll param corruption
+            result = sqlite.Exec(dataInput); // extra "" fixes mt4 build 640 dll param corruption
             if (result != 0) { 
-                handleError(DW_QueryRun, "Sqlite expression failed: ", result, FunctionTrace, dataInput); 
+                handleError(DW_QueryRun, "Sqlite expression failed: " + result + " - " + sqlite.ErrorMsg(), result, FunctionTrace, dataInput); 
                 return false; 
             }
             else { return true; }
@@ -372,24 +372,43 @@ bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
         return false;
     }
     
-    int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0;
+    int callResult; int i = 0; int j = 0;
     
     ArrayFree(result);
     
     switch(dbType) {
-        case DW_Sqlite:
-            queryHandle = sqlite_query(filePath, query, cols);
+        case DW_Sqlite: {
+            CSQLite3Table tbl;
+            callResult = sqlite.Query(tbl, query);
+            if(callResult != SQLITE_DONE) {
+                handleError(DW_QueryRetrieveRows, "Query error: " + sqlite.ErrorMsg(), callResult, FunctionTrace, query);
+                return false; 
+            }
+            
+            int rowCount = ArraySize(tbl.m_data);
+            int colCount = 0;
+            ArrayResize(result, 0, rowCount);
+            for (i = 0; i < rowCount; i++) {
+                CSQLite3Row *row = tbl.Row(i);
+                if(!CheckPointer(row)) {
+                    handleError(DW_QueryRetrieveRows, "Query error: row pointer invalid", i, FunctionTrace, query);
+                    continue;
+                }
 
-            for (i = 0; sqlite_next_row(queryHandle) == 1; i++) {
                 ArrayResize(result, i+1);
-                for (j = 0; j < cols[0]; j++) {
-                    result[i][j] = sqlite_get_col(queryHandle, j);
+                colCount = ArraySize(row.m_data);
+                for (j = 0; j < colCount; j++) {
+                    result[i][j] = row.m_data[j].GetString();
                 }
             }
+
+            if(i > 0 && j > 0) { return true; }
+            else {
+                handleError(DW_QueryRetrieveRows, "Query: " + i + " rows, " + j + " columns returned", i, FunctionTrace, query);
+                return false;
+            }
+        }
         
-            sqlite_free_query(queryHandle);
-            return (i > 0 && j > 0);
-            
         case DW_Mysql:
             callResult = MySQL_FetchArray(dbConnectId, query, result);
             if(callResult < 1) { 
@@ -425,20 +444,33 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
     }
     
     int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
-    int callResult; int queryHandle; int cols[1]; int i = 0; int j = 0; 
+    int callResult; int cols[1]; int i = 0; int j = 0; 
     string allRows[][1];
     bool queryResult; bool returnResult = false; string dbResult;
     
     switch(dbType) {
-        case DW_Sqlite:
-            queryHandle = sqlite_query(filePath, query, cols);
-
-            for(i = 0; sqlite_next_row(queryHandle) == 1; i++) {
+        case DW_Sqlite: {
+            CSQLite3Table tbl;
+            callResult = sqlite.Query(tbl, query);
+            if(callResult != SQLITE_DONE) {
+                handleError(DW_QueryRetrieveRows, "Query error: " + sqlite.ErrorMsg(), callResult, FunctionTrace, query);
+                return false; 
+            }
+            
+            int rowCount = ArraySize(tbl.m_data);
+            int colCount = 0;
+            for (i = 0; i < rowCount; i++) {
                 if(i == rowIndex) {
-                    for (j = 0; j < cols[0]; j++) {
-                        if(j == colIndex) {
-                            // todo: how to handle errors??? 
-                            dbResult = sqlite_get_col(queryHandle, j); 
+                    CSQLite3Row *row = tbl.Row(i);
+                    if(!CheckPointer(row)) {
+                        handleError(DW_QueryRetrieveRows, "Query error: row pointer invalid", i, FunctionTrace, query);
+                        break;
+                    }
+
+                    colCount = ArraySize(row.m_data);
+                    for (j = 0; j < colCount; j++) {
+                        if(j == colIndex) { 
+                            dbResult = row.m_data[j].GetString();
                             returnResult = true;
                             break;
                         }
@@ -446,10 +478,9 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                     break;
                 }
             }
+        } 
+        break;
         
-            sqlite_free_query(queryHandle);
-            break;
-            
         case DW_Mysql:
         case DW_Postgres:
             // todo: would be nice to copy these methods from the helper libraries directly
