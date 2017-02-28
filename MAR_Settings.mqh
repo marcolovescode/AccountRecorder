@@ -45,7 +45,7 @@ input bool EnablePostgres = false;
 input string PgConnectOrderString = "hostaddr=127.0.0.1 port=5432 dbname=mydb user=username password=password connect_timeout=5";
 
 input bool EnableSqlite = true;
-input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite";
+input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
 
 input bool EnableSqlText = false;
 input string TxOrderDbPath = "";

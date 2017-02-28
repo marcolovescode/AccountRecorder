@@ -16,6 +16,7 @@ class CSQLite3Base
    bool              m_bopened;        // flag "Is m_db handle valid"
    string            m_dbfile;         // path to database file
    string            m_lasterrormsg;   // last error to return when disconnected
+   bool              m_alwaysdisconnect; // disconnect and reconnect after every call
 
 public:
                      CSQLite3Base();   // constructor
@@ -25,7 +26,7 @@ public:
 public:
    //--- connection to database 
    bool              IsConnected();
-   int               Connect(string dbfile);
+   int               Connect(string dbfile, bool alwaysDisconnectAfterCalls = false);
    void              Disconnect();
    int               Reconnect();
    //--- error message
@@ -41,7 +42,7 @@ public:
    int               Query(string query); // for ex.: INSERT INTO <table>(roll,name,cgpa) VALUES (4,'uuu',6.6)
    int               Query(CSQLite3Table &tbl,string query); // for ex.: SELECT * FROM <table> WHERE (a>100)
    int               QueryBind(CSQLite3Row &row,string query); // UPDATE <table> SET <row>=?, <row>=? WHERE (cond)
-   int               Exec(string query, bool disconnectAfter = false);
+   int               Exec(string query);
    int               Transact(string &query[]);
    int               TransactBind(CSQLite3Table &tbl,string query);
   };
@@ -70,11 +71,12 @@ bool CSQLite3Base::IsConnected()
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-int CSQLite3Base::Connect(string dbfile)
+int CSQLite3Base::Connect(string dbfile, bool alwaysDisconnectAfterCalls = false)
   {
    if(IsConnected())
       return(SQLITE_OK);
    m_dbfile=dbfile;
+   m_alwaysdisconnect=alwaysDisconnectAfterCalls;
    return(Reconnect());
   }
 //+------------------------------------------------------------------+
@@ -94,8 +96,11 @@ int CSQLite3Base::Reconnect()
   {
    Disconnect();
    uchar file[];
+   uchar zVfs[];
+   //int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_SHAREDCACHE;
+   int flags = 2 | 4 | 65536 | 131072;
    StringToCharArray(m_dbfile,file);
-   int res=::sqlite3_open(file,m_db);
+   int res=::sqlite3_open_v2(file,m_db,flags,zVfs);
    m_bopened=(res==SQLITE_OK && m_db);
    return(res);
   }
@@ -184,7 +189,7 @@ int CSQLite3Base::Query(string query)
          return(SQLITE_ERROR);
 //--- check query string
    if(StringLen(query)<=0) {
-      Disconnect();
+      if(m_alwaysdisconnect) { Disconnect(); }
       return(SQLITE_DONE);
    }
    sqlite3_stmt_p64 stmt=0; // variable for pointer
@@ -195,35 +200,37 @@ int CSQLite3Base::Query(string query)
 //--- prepare statement and check result
    int res=::sqlite3_prepare(m_db,str,-1,pstmt,NULL);
    if(res!=SQLITE_OK) {
-      ErrorMsg(); // log into lasterrormsg
-      Disconnect();
+      if(m_alwaysdisconnect) { 
+         ErrorMsg(); // log into lasterrormsg
+         Disconnect();
+      }
       return(res);
    }
 //--- execute
    res=::sqlite3_step(pstmt);
 //--- clean
    ::sqlite3_finalize(pstmt);
-   Disconnect();
+   if(m_alwaysdisconnect) { Disconnect(); }
 //--- return result
    return(res);
   }
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-int CSQLite3Base::Exec(string query, bool disconnectAfter = false)
+int CSQLite3Base::Exec(string query)
   {
   // todo: should this have a disconnect call?
    if(!IsConnected())
       if(Reconnect() != SQLITE_OK)
          return(SQLITE_ERROR);
    if(StringLen(query)<=0) {
-      if(disconnectAfter) { Disconnect(); }
+      if(m_alwaysdisconnect) { Disconnect(); }
       return(SQLITE_DONE);
    }
    uchar str[];
    StringToCharArray(query,str);
    int res=::sqlite3_exec(m_db,str,NULL,NULL,NULL);
-   if(disconnectAfter) {
+   if(m_alwaysdisconnect) {
        if(res!=SQLITE_OK) { ErrorMsg(); }
        Disconnect();
    }
@@ -241,7 +248,7 @@ int CSQLite3Base::Query(CSQLite3Table &tbl,string query)
          return(SQLITE_ERROR);
 //--- check query string
    if(StringLen(query)<=0) {
-      Disconnect();
+      if(m_alwaysdisconnect) { Disconnect(); }
       return(SQLITE_DONE);
    }
 //---
@@ -273,7 +280,7 @@ int CSQLite3Base::Query(CSQLite3Table &tbl,string query)
      }
    ::sqlite3_finalize(stmt); // clean
    if(!b) { ErrorMsg(); }
-   Disconnect();
+   if(m_alwaysdisconnect) { Disconnect(); }
    return(b?SQLITE_DONE:res); // return result code
   }
 //+------------------------------------------------------------------+
@@ -327,8 +334,10 @@ int CSQLite3Base::Transact(string &query[])
    int res=Exec("BEGIN");
 //--- create transaction
    if(res!=SQLITE_OK) {
-      ErrorMsg();
-      Disconnect();
+      if(m_alwaysdisconnect) { 
+         ErrorMsg();
+         Disconnect();
+      }
       return(res);
    }
    for(int i=0; i<ArraySize(query); i++)
@@ -336,14 +345,14 @@ int CSQLite3Base::Transact(string &query[])
       res=Exec(query[i]);
       if(res!=SQLITE_DONE)
         {
-         ErrorMsg();
+         if(m_alwaysdisconnect) { ErrorMsg(); }
          Exec("ROLLBACK");
-         Disconnect();
+         if(m_alwaysdisconnect) { Disconnect(); }
          return(res);
         }
      }
    Exec("COMMIT");
-   Disconnect();
+   if(m_alwaysdisconnect) { Disconnect(); }
    return(SQLITE_DONE);
   }
 //+------------------------------------------------------------------+

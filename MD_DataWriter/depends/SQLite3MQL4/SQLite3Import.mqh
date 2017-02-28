@@ -31,6 +31,7 @@
 
 #import "MD_DataWriter/sqlite3_32.dll"
 int sqlite3_open(const uchar &filename[],sqlite3_p32 &paDb);
+int sqlite3_open_v2(const uchar &filename[],sqlite3_p32 &paDb,int flags,const uchar &zVfs[]);
 int sqlite3_close(sqlite3_p32 aDb);
 int sqlite3_prepare(sqlite3_p32 aDb,const char &sql[],int nByte,sqlite3_stmt_p32 &pStmt,PTRPTR32 pzTail);
 int sqlite3_prepare_v2(sqlite3_p32 aDb,const char &sql[],int nByte,sqlite3_stmt_p32 &pStmt,PTRPTR32 pzTail);
@@ -61,6 +62,7 @@ const PTR32 sqlite3_column_blob(sqlite3_stmt_p32 apstmt,int acol);
 #import
 
 int sqlite3_open(const uchar &filename[],sqlite3_p64 &ppDb) { sqlite3_p32 pdb=NULL; int r=sqlite3_32::sqlite3_open(filename,pdb); ppDb=pdb; return(r); }
+int sqlite3_open_v2(const uchar &filename[],sqlite3_p64 &ppDb, int flags, const uchar &zVfs[]) { sqlite3_p32 pdb=NULL; int r=sqlite3_32::sqlite3_open_v2(filename,pdb,flags,zVfs); ppDb=pdb; return(r); }
 int sqlite3_close(PTR64 pDb) { return(sqlite3_32::sqlite3_close((PTR32)pDb)); };
 int sqlite3_exec(sqlite3_p64 aDb,const char &sql[],PTR64 acallback,PTR64 avoid,PTRPTR64 errmsg) { return(sqlite3_32::sqlite3_exec((sqlite3_p32)aDb,sql,(PTR32)acallback,(PTR32)avoid,(PTRPTR32)errmsg)); }
 int sqlite3_prepare(sqlite3_p64 aDb,const char &sql[],int nByte,sqlite3_stmt_p64 &pStmt,PTRPTR64 pzTail) { sqlite3_stmt_p32 pstmt=NULL; int r=sqlite3_32::sqlite3_prepare(aDb,sql,nByte,pstmt,pzTail); pStmt=pstmt; return(r); }
@@ -88,6 +90,17 @@ long sqlite3_column_int64(sqlite3_stmt_p64 apstmt,int acol) { return(sqlite3_32:
 double sqlite3_column_double(sqlite3_stmt_p64 apstmt,int acol) { return(sqlite3_32::sqlite3_column_double((sqlite3_stmt_p32)apstmt,acol)); }
 const PTR64 sqlite3_column_text(sqlite3_stmt_p64 apstmt, int acol) { return(sqlite3_32::sqlite3_column_text((sqlite3_stmt_p32)apstmt, acol)); }
 const PTR64 sqlite3_column_blob(sqlite3_stmt_p64 apstmt, int acol) { return(sqlite3_32::sqlite3_column_blob((sqlite3_stmt_p32)apstmt, acol)); }
+
+/* file open flags */
+#define SQLITE_OPEN_READONLY         1  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_READWRITE        2  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_CREATE           4  /* Ok for sqlite3_open_v2() */.
+#define SQLITE_OPEN_URI              64  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_MEMORY           128  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_NOMUTEX          32768  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_FULLMUTEX        65536  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_SHAREDCACHE      131072  /* Ok for sqlite3_open_v2() */
+#define SQLITE_OPEN_PRIVATECACHE     262144  /* Ok for sqlite3_open_v2() */
 
 #define SQLITE_OK           0   /* Successful result */
 /* beginning-of-error-codes */
