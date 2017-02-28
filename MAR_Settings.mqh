@@ -7,12 +7,14 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 //+------------------------------------------------------------------+
-input int DebugLevel = 3; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info
+input int DebugLevel = 3; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
+input bool LogAllErrorsToFile = true; // LogAllErrorsToFile
+input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
 input string TimingOptions = "-------------------- Timing --------------------";
 input int DelayedEntrySeconds = 10;
 input int OrderRefreshSeconds = 60;
 input int EquityRefreshSeconds = 300;
-input bool SkipIfDisconnected = true;
+//input bool SkipIfDisconnected = true;
 input bool SkipWeekends = true;
 input int StartWeekday = 0; // Start weekday from Sunday = 0, Monday = 1 .. Saturday = 6
 input int StartWeekdayHour = 17;

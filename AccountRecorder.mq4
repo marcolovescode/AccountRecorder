@@ -31,6 +31,8 @@ bool FirstTimerRun = true;
 
 int OnInit() {
     MC_Error::DebugLevel = DebugLevel;
+    MC_Error::LogAllErrorsToFile = LogAllErrorsToFile;
+    MC_Error::FilePath = ErrorLogFileName;
     ResourceMan = new ResourceStore();
     
 #ifdef _LOCALRESOURCE
@@ -43,18 +45,19 @@ int OnInit() {
     
     AccountMan = new MainAccountRecorder();
     
-    if(DelayedEntrySeconds > 0) { EventSetTimer(DelayedEntrySeconds); }
-    else { EventSetMillisecondTimer(255); }
+    if(DelayedEntrySeconds > 0) { MC_Common::EventSetTimerReliable(DelayedEntrySeconds); }
+    else { MC_Common::EventSetMillisecondTimerReliable(255); }
     
     return INIT_SUCCEEDED;
 }
 
 void OnTimer() {
     if(FirstTimerRun) {
-        EventKillTimer();
-        AccountMan.doFirstRun();
-        FirstTimerRun = false;
-        EventSetTimer(MC_Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
+        if(AccountMan.doFirstRun()) { // this will fail if not connected or schema not verified
+            EventKillTimer();
+            FirstTimerRun = false;
+            MC_Common::EventSetTimerReliable(MC_Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
+        }    
     } else {
         AccountMan.doCycle();
     }

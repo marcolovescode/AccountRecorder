@@ -23,8 +23,12 @@ class MainAccountRecorder {
     private:
     DataWriterManager *dWriterMan;
     bool setupConnections();
+    bool checkSchema();
     bool setupSchema();
     bool setupAccountRecords();
+    
+    bool schemaReady;
+    bool firstRunComplete;
     
     string uuidAccount;
     string uuidCurrency;
@@ -45,7 +49,7 @@ class MainAccountRecorder {
     bool recordOrderElection(string orderUuid);
     void updateOrders();
     void updateEquity();
-    void doFirstRun();
+    bool doFirstRun();
 };
 
 void MainAccountRecorder::MainAccountRecorder() {
@@ -53,11 +57,25 @@ void MainAccountRecorder::MainAccountRecorder() {
     setupConnections();
 }
 
-void MainAccountRecorder::doFirstRun() {
-    AccountMan.setupSchema();
+bool MainAccountRecorder::doFirstRun() {
+    if(!IsConnected()) {
+        MC_Error::ThrowError(ErrorNormal, "Not connected to broker, will attempt first run on cycle.", FunctionTrace);
+        return false;
+    }
+    
+    MC_Error::PrintInfo(ErrorInfo, "Starting first run", FunctionTrace, NULL, ErrorForceTerminal);
+    
+    if(!AccountMan.setupSchema()) {
+        MC_Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        return false;
+    }
     AccountMan.setupAccountRecords();
     AccountMan.doCycle(true);
-    MC_Error::PrintInfo(ErrorInfo, "First run complete", FunctionTrace);
+    
+    MC_Error::PrintInfo(ErrorInfo, "First run complete", FunctionTrace, NULL, ErrorForceTerminal);
+    firstRunComplete = true;
+    
+    return true;
 }
 
 bool MainAccountRecorder::setupConnections() {
@@ -79,8 +97,35 @@ bool MainAccountRecorder::setupConnections() {
     return true;
 }
 
+bool MainAccountRecorder::checkSchema() {
+    int expectedTableCount = 16;
+    int tableCount = 0;
+    
+    if(EnableSqlite) {
+        if(!dWriterMan.queryRetrieveOne(
+            "select count(type) from sqlite_master where sqlite_master.type = 'table' and sqlite_master.name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');"
+            , tableCount
+            , 0
+            , DW_Sqlite
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+        } else {
+            schemaReady = (tableCount == expectedTableCount);
+        }
+    }
+    
+    if(!schemaReady) {
+        MC_Error::ThrowError(ErrorNormal, "Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+    }
+    
+    return schemaReady;
+}
+
 bool MainAccountRecorder::setupSchema() {
     string scriptSrc[];
+
+    MC_Error::PrintInfo(ErrorInfo, "Setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
 
     if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
         dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, UseAllWriters);
@@ -93,13 +138,16 @@ bool MainAccountRecorder::setupSchema() {
     if(EnableMysql && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Mysql.sql", scriptSrc)) {
         dWriterMan.scriptRun(scriptSrc, DW_Mysql, -1, UseAllWriters);
     }
+    
+    checkSchema();
+    MC_Error::PrintInfo(ErrorInfo, "Finished setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
 
-    return true;
+    return schemaReady;
 }
 
 bool MainAccountRecorder::setupAccountRecords() {
     if(!IsConnected()) {
-        MC_Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace);
+        MC_Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace, NULL, false, ErrorForceTerminal);
         return false;
     }
     
@@ -164,12 +212,17 @@ void MainAccountRecorder::~MainAccountRecorder() {
 }
 
 void MainAccountRecorder::doCycle(bool force = false) {
+    if(!IsConnected()) {
+        MC_Error::ThrowError(ErrorNormal, "Not connected to broker, cannot do cycle.", FunctionTrace);
+        return;
+    }
+
     datetime currentTimerTime = TimeLocal();
     
     if(SkipWeekends) {
         if(MC_Common::IsDatetimeInRange(currentTimerTime, EndWeekday, EndWeekdayHour, StartWeekday, StartWeekdayHour)) {
             if(!firstWeekendNoticeFired) {
-                MC_Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace);
+                MC_Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
                 firstWeekendNoticeFired = true;
             } else if(!force) { return; }
         } else {
@@ -177,19 +230,26 @@ void MainAccountRecorder::doCycle(bool force = false) {
         }
     }
     
+    if(!checkSchema()) {
+        if(!setupSchema()) {
+            MC_Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
+            return;
+        }
+    }
+    
     if(EnableOrderRecording && (force || (currentTimerTime - lastOrderTime >= OrderRefreshSeconds))) {
-        MC_Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace);
+        MC_Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorForceTerminal);
         updateOrders();
         lastOrderTime = currentTimerTime;
     }
     
     if(EnableEquityRecording && (force || (currentTimerTime - lastEquityTime >= EquityRefreshSeconds))) {
-        MC_Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace);
+        MC_Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorForceTerminal);
         updateEquity();
         lastEquityTime = currentTimerTime;
     }
     
-    MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace);
+    MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
 }
 
 bool MainAccountRecorder::recordOrderSplits(string orderUuid) {

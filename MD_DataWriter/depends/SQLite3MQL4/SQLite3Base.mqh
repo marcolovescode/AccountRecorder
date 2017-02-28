@@ -27,7 +27,7 @@ public:
    //--- connection to database 
    bool              IsConnected();
    int               Connect(string dbfile, bool alwaysDisconnectAfterCalls = false);
-   void              Disconnect();
+   int              Disconnect();
    int               Reconnect();
    //--- error message
    string            ErrorMsg();
@@ -82,12 +82,16 @@ int CSQLite3Base::Connect(string dbfile, bool alwaysDisconnectAfterCalls = false
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void CSQLite3Base::Disconnect()
+int CSQLite3Base::Disconnect()
   {
+   int result;
    if(IsConnected())
-      ::sqlite3_close(m_db);
-   m_db=NULL;
-   m_bopened=false;
+      result=::sqlite3_close(m_db);
+   if(result == SQLITE_OK){
+      m_db=NULL;
+      m_bopened=false;
+   }
+   return result;
   }
 //+------------------------------------------------------------------+
 //|                                                                  |
