@@ -277,7 +277,7 @@ CSQLite3Row::~CSQLite3Row()
 //+------------------------------------------------------------------+
 void CSQLite3Row::Clear()
   {
-   ArrayResize(m_data,0);
+   ArrayFree(m_data);
   }
 //+------------------------------------------------------------------+
 //|                                                                  |
@@ -423,8 +423,8 @@ CSQLite3Table::~CSQLite3Table()
 //+------------------------------------------------------------------+
 void CSQLite3Table::Clear()
   {
-   ArrayResize(m_colname,0);
-   ArrayResize(m_data,0);
+   ArrayFree(m_colname);
+   ArrayFree(m_data);
   }
 //+------------------------------------------------------------------+
 //|                                                                  |

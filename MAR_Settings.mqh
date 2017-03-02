@@ -7,7 +7,7 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 //+------------------------------------------------------------------+
-input int DebugLevel = 3; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
+input int DebugLevel = 2; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
 input bool LogAllErrorsToFile = true; // LogAllErrorsToFile
 input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
 input string TimingOptions = "-------------------- Timing --------------------";

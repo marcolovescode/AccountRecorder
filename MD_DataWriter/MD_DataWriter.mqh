@@ -431,6 +431,7 @@ bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
                     for (j = 0; j < colCount; j++) {
                         result[i][j] = row.m_data[j].GetString();
                     }
+                    if(CheckPointer(row) == POINTER_DYNAMIC) { delete(row); }
                 }
     
                 if(i > 0 && j > 0) { return true; }
@@ -514,6 +515,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                                 break;
                             }
                         }
+                        if(CheckPointer(row) == POINTER_DYNAMIC) { delete(row); }
                         break;
                     }
                 }
