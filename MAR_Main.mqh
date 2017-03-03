@@ -60,6 +60,7 @@ bool MainAccountRecorder::doFirstRun() {
     
     if(!AccountMan.setupSchema()) {
         MC_Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        dWriterMan.resetFatalErrors();
         return false;
     }
     AccountMan.setupAccountRecords();
@@ -77,16 +78,16 @@ bool MainAccountRecorder::setupConnections() {
     // todo: implement ordering, modes (0=disabled, 1=normal, 2=always)
     
     //if(EnableMysql) {
-    //    dWriterMan.addDataWriter(DW_Mysql, ConnectRetries, ConnectRetryDelaySecs, true, 
+    //    dWriterMan.addDataWriter(DW_Mysql, ConnectRetries, ConnectRetryDelaySecs, 
     //        MyHost, MyUser, MyPass, MyOrderDbName, MyPort, MySocket, MyClientFlags);
     //}
     
     if(EnablePostgres) {
-        dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, true, PgConnectOrderString);
+        dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, PgConnectOrderString);
     }
     
     if(EnableSqlite) {
-        dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, true, SlOrderDbPath);
+        dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, SlOrderDbPath);
     }
     
     return true;
@@ -231,6 +232,7 @@ void MainAccountRecorder::~MainAccountRecorder() {
 void MainAccountRecorder::doCycle(bool force = false) {
     if(!IsConnected()) {
         MC_Error::ThrowError(ErrorNormal, "Not connected to broker, cannot do cycle.", FunctionTrace);
+        dWriterMan.resetFatalErrors();
         return;
     }
 
@@ -241,7 +243,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
             if(!firstWeekendNoticeFired) {
                 MC_Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
                 firstWeekendNoticeFired = true;
-            } else if(!force) { return; }
+            } else if(!force) { dWriterMan.resetFatalErrors(); return; }
         } else {
             firstWeekendNoticeFired = false;
         }
@@ -250,6 +252,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     if(!checkSchema()) {
         if(!setupSchema()) {
             MC_Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
+            dWriterMan.resetFatalErrors();
             return;
         }
     }
@@ -267,6 +270,8 @@ void MainAccountRecorder::doCycle(bool force = false) {
     }
     
     MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
+    
+    dWriterMan.resetFatalErrors();
 }
 
 bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
