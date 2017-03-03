@@ -14,7 +14,7 @@ enum ErrorLevel {
     ErrorFatal,
     ErrorNormal,
     ErrorInfo,
-    ErrorTrivial
+    ErrorMinor
 };
 
 enum ErrorPrintLocation {
@@ -75,7 +75,7 @@ void MC_Error::PrintError(int level, string message, string funcTrace, bool fata
     
     string errorMsg = StringConcatenate(
         fatal ? StringConcatenate(FatalCounter, " FATAL ") : "", 
-        info ? "INFO: " : "ERROR: ", 
+        level == ErrorInfo ? "INFO: " : level == ErrorMinor ? "MINOR: " : "ERROR: ", 
         funcTrace, " - ", 
         message,
         StringLen(params) > 0 ? StringConcatenate(" - PARAMS: ", params) : ""
