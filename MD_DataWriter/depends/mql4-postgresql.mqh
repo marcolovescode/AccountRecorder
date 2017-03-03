@@ -7,10 +7,14 @@
 #property link      "http://www.mql5.com"
 #property strict
 
-#import "kernel32.dll"
-   int lstrlenA(int);
-   void RtlMoveMemory(uchar & arr[], int, int);
-   int LocalFree(int); // May need to be changed depending on how the DLL allocates memory
+#define PTR32              int
+#define PTR64              long
+
+#import "msvcrt.dll"
+  int strcpy(uchar &dst[],int src);
+  long strcpy(uchar &dst[],long src);
+  int strlen(int src);
+  int strlen(long src);
 #import
 
 enum ConnStatusType
@@ -55,65 +59,110 @@ enum ExecStatusType
  
 
 #import "MD_DataWriter/libpq.dll"
+
+// Connection control
+
 //extern PGconn *PQconnectdb(const char *conninfo);
-int PQconnectdb(uchar & conninfo[]);
+PTR32 PQconnectdb(const uchar &conninfo[]);
 //extern void PQfinish(PGconn *conn);
-void PQfinish(int conn);
-//extern PGresult *PQexec(PGconn *conn, const char *query);
-int PQexec(int conn, uchar & query[]);
+void PQfinish(PTR32 conn);
 //extern ConnStatusType PQstatus(const PGconn *conn);
-ConnStatusType PQstatus(int conn);
+ConnStatusType PQstatus(const PTR32 conn);
 //extern char *PQerrorMessage(const PGconn *conn);
-int PQerrorMessage(int conn);
-/* Delete a PGresult */
+PTR32 PQerrorMessage(const PTR32 conn);
+
+//+------------------------------------------------------------------+
+
+// Command execution
+
+//extern PGresult *PQexec(PGconn *conn, const char *query);
+PTR32 PQexec(PTR32 conn, const uchar &query[]);
 //extern void PQclear(PGresult *res);
-void PQclear(int res);
+void PQclear(PTR32 res);
 //extern ExecStatusType PQresultStatus(const PGresult *res);
-ExecStatusType PQresultStatus(int res);
+ExecStatusType PQresultStatus(const PTR32 res);
+//char *PQresultErrorMessage(const PGresult *res);
+PTR32 PQresultErrorMessage(const PTR32 res);
+
 //int PQntuples(const PGresult *res);
-int PQntuples(int res);
+int PQntuples(const PTR32 res);
 //int PQnfields(const PGresult *res);
-int PQnfields(int res);
+int PQnfields(const PTR32 res);
+
+//int PQgetlength(const PGresult *res, int row_number, int column_number);
+int PQgetlength(const PTR32 res, int row_number, int column_number);
+// int PQfformat(const PGresult *res, int column_number);
+int PQfformat(const PTR32 res, int column_number);
+// int PQgetisnull(const PGresult *res, int row_number, int column_number);
+int PQgetisnull(const PTR32 res, int row_number, int column_number);
+
 //extern char *PQgetvalue(const PGresult *res, int tup_num, int field_num);
-int PQgetvalue(int res, int tup_num, int field_num);
+PTR32 PQgetvalue(const PTR32 res, int tup_num, int field_num);
 
 #import
 
-bool init_PSQL(int & dbConnectId, string conninfo)
+// todo: retrieve and store by handle id
+string PSQL_LastErrorMessage = "";
+
+//+------------------------------------------------------------------+
+
+bool init_PSQL(PTR32 &dbConnectId, string conninfo)
   {
     uchar conninfoChar[];
     StringToCharArray(conninfo, conninfoChar);
     dbConnectId=PQconnectdb(conninfoChar);
     if (PQstatus(dbConnectId) != CONNECTION_OK) {
-      Print("Connection to database failed: ",mql4_ansi2unicode(PQerrorMessage(dbConnectId)));
+      PSQL_LastErrorMessage = PointerToString(PQerrorMessage(dbConnectId));
       return(false);
     } else {
       return(true);
     }
   }
 
-void deinit_PSQL(int dbConnectId)
+void deinit_PSQL(PTR32 &dbConnectId)
   {
     PQfinish(dbConnectId);
+    dbConnectId = 0;
   }
+  
+string PSQL_LastError(PTR32 dbConnectId) {
+    //if(StringLen(PSQL_LastErrorMessage) < 1) { PSQL_LastErrorMessage = PointerToString(PQerrorMessage(dbConnectId)); }
+    return PSQL_LastErrorMessage;
+}
 
 //+----------------------------------------------------------------------------+
 //| Simply run a query, perfect for actions like INSERTs, UPDATEs, DELETEs     |
 //+----------------------------------------------------------------------------+
-bool PSQL_Query(int dbConnectId, string query)
+bool PSQL_Query(PTR32 dbConnectId, string query)
   {
     uchar queryChar[];
     StringToCharArray(query, queryChar);
+    bool returnResult = false;
+    PTR32 res = PQexec(dbConnectId,queryChar);
     
-    int res=PQexec(dbConnectId,queryChar);
-    if ( PQresultStatus(res) != PGRES_COMMAND_OK ) {
-      Print("Query failed: ",mql4_ansi2unicode(PQerrorMessage(dbConnectId)));
-      PQclear(res);
-      return (false);
+    if(res <= 0) {
+      PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+      returnResult = false;
     } else {
-      PQclear(res);
-      return (true);
+      switch(PQresultStatus(res)) {
+        case PGRES_BAD_RESPONSE:
+        case PGRES_NONFATAL_ERROR:
+        case PGRES_FATAL_ERROR:
+          PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+          returnResult = false;
+          break;
+          
+        case PGRES_EMPTY_QUERY:
+        case PGRES_COMMAND_OK:
+        case PGRES_TUPLES_OK:
+        default:
+          returnResult = true;   
+          break;
+      }
     }
+    
+    PQclear(res);
+    return returnResult;
   }
 
 //+----------------------------------------------------------------------------+
@@ -121,34 +170,52 @@ bool PSQL_Query(int dbConnectId, string query)
 //|                                                                            |
 //| return (-1): error; (0): 0 rows selected; (1+): some rows selected;         |
 //+----------------------------------------------------------------------------+
-int PSQL_FetchArray(int dbConnectId, string query, string & data[][])
+int PSQL_FetchArray(PTR32 dbConnectId, string query, string &data[][])
   {
     uchar queryChar[];
     StringToCharArray(query, queryChar);
+    int returnResult = -1;
+    
+    ArrayFree(data);
     
     int res=PQexec(dbConnectId,queryChar);
-    switch(PQresultStatus(res)) {
-      case PGRES_EMPTY_QUERY:
-      case PGRES_COMMAND_OK:
-        ArrayFree(data);
-        PQclear(res);
-        return(0);
-      case PGRES_TUPLES_OK:{
-        int num_rows   = PQntuples(res);
-        int num_fields = PQnfields(res);
-        ArrayResize(data, num_rows);
-        for ( int i = 0; i < num_rows; i++ ) {
-          for ( int j = 0; j < num_fields; j++ ) {
-            data[i][j]=mql4_ansi2unicode(PQgetvalue(res, i, j));
+    
+    if(res <= 0) {
+      PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+      returnResult = -1;
+    } else {
+      switch(PQresultStatus(res)) {
+        case PGRES_BAD_RESPONSE:
+        case PGRES_NONFATAL_ERROR:
+        case PGRES_FATAL_ERROR:
+          PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+          returnResult = -1;
+          break;
+          
+        case PGRES_EMPTY_QUERY:
+        case PGRES_COMMAND_OK:
+          returnResult = 0;
+          break;
+          
+        case PGRES_TUPLES_OK:{
+          int num_rows   = PQntuples(res);
+          int num_fields = PQnfields(res);
+          ArrayResize(data, num_rows);
+          for (int i = 0; i < num_rows; i++ ) {
+            for (int j = 0; j < num_fields; j++ ) {
+              if(!PQgetisnull(res, i, j) && PQfformat(res, j) == 0 /* text */) {
+                data[i][j]=PointerToString(PQgetvalue(res, i, j), PQgetlength(res, i, j));
+              } // todo: represent binary?
+            }
           }
+          returnResult = num_rows;
+          break;
         }
-        PQclear(res);
-        return(num_rows);
       }
     }
-    Print("Query failed: ",mql4_ansi2unicode(PQerrorMessage(dbConnectId)));
+    
     PQclear(res);
-    return(-1);
+    return returnResult;
   }
 
 //+----------------------------------------------------------------------------+
@@ -156,13 +223,16 @@ int PSQL_FetchArray(int dbConnectId, string query, string & data[][])
 //| format                                                                     |
 //| http://forum.mql4.com/60708                                                |
 //+----------------------------------------------------------------------------+
-string mql4_ansi2unicode(int ptrStringMemory)
-  {
-    int szString = lstrlenA(ptrStringMemory);
+string PointerToString(PTR32 ptrStringMemory, int szString = -1)
+{
+    if(szString < 0) { szString = msvcrt::strlen(ptrStringMemory); }
+    if(szString <= 0) { return ""; }
+    
     uchar ucValue[];
     ArrayResize(ucValue, szString + 1);
-    RtlMoveMemory(ucValue, ptrStringMemory, szString + 1);
+    
+    msvcrt::strcpy(ucValue,ptrStringMemory);
+    
     string str = CharArrayToString(ucValue);
-    LocalFree(ptrStringMemory);
     return str;
-  }
+}

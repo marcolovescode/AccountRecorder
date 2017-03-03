@@ -75,7 +75,7 @@ class DataWriter {
     bool queryRun(string dataInput);
     bool getCsvHandle(int &outFileHandle);
     
-    bool queryRetrieveRows(string query, string &result[][]);
+    int queryRetrieveRows(string query, string &result[][]);
     
     template<typename T>
     bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/);
@@ -167,7 +167,7 @@ bool DataWriter::initConnection(bool initCommon=false, string param="", string p
             bResult = init_PSQL(dbConnectId, dbConnectString);
 
             if(!bResult) { 
-                MC_Error::ThrowError(ErrorNormal, "PostgresSQL failed init", FunctionTrace); 
+                MC_Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorMessage, FunctionTrace); 
                 return false; 
             }
             else { isInit = true; return true; }
@@ -393,12 +393,12 @@ bool DataWriter::getCsvHandle(int &outFileHandle) {
     return false;
 }
 
-bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
+int DataWriter::queryRetrieveRows(string query, string &result[][]) {
     // NOTE: Multidim array size needs to be hardcoded to the expected number of cols. Else, this fails.
     
     if(!isInit) {
         MC_Error::ThrowError(ErrorNormal, "DB is not initiated", FunctionTrace, dbType);
-        return false;
+        return -1;
     }
     
     int callResult; int i = 0; int j = 0; int errorCode = -1;
@@ -433,44 +433,43 @@ bool DataWriter::queryRetrieveRows(string query, string &result[][]) {
                     }
                     if(CheckPointer(row) == POINTER_DYNAMIC) { delete(row); }
                 }
-    
-                if(i > 0 && j > 0) { return true; }
-                else {
+                if(i <= 0 || j <= 0) {
                     MC_Error::PrintInfo(ErrorTrivial, "Query: " + i + " rows, " + j + " columns returned: " + i, FunctionTrace, query, ErrorForceFile);
-                    return false;
                 }
+                
+                return i;
             }
             
             case DW_Mysql:
                 callResult = MySQL_FetchArray(dbConnectId, query, result);
-                if(callResult < 1) { 
+                if(callResult < 0) { 
                     // errorCode = 
-                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: ", FunctionTrace, query);
+                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: " + ""/*MySQL_LastError(dbConnectId)*/, FunctionTrace, query);
                     continue;
                 }
-                else { return true; }
+                else { return callResult; }
                 
             case DW_Postgres:
                 callResult = PSQL_FetchArray(dbConnectId, query, result);
-                if(callResult < 1) { 
+                if(callResult < 0) { 
                     // errorCode = 
-                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: ", FunctionTrace, query);
+                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: " + PSQL_LastError(dbConnectId), FunctionTrace, query);
                     continue;
                 }
-                else { return true; }
+                else { return callResult; }
                 
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
                 MC_Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
-                return false;           
+                return -1;           
         
             default:
                 MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
-                return false;
+                return -1;
         }
     }
     
-    return false;
+    return -1;
 }
 
 template<typename T>
@@ -483,7 +482,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
     int colIndex = 0; // since multidim array size is hardcoded, we can only retrieve one column
     int callResult; int cols[1]; int i = 0; int j = 0; 
     string allRows[][1];
-    bool queryResult; bool returnResult = false; string dbResult; int errorCode = -1;
+    int queryResult; bool returnResult = false; string dbResult; int errorCode = -1;
     bool working = true;
     
     for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
@@ -527,9 +526,9 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                 // todo: would be nice to copy these methods from the helper libraries directly
                 // so we can refer to data directly by row and col
                 queryResult = queryRetrieveRows(query, allRows);
-                if(!queryResult) { 
+                if(queryResult < 0) {
                     // errorCode = 
-                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: ", FunctionTrace, query);
+                    working = handleErrorRetry(errorCode, ErrorNormal, "Query error: " + dbType==DW_Mysql?""/*MySQL_LastError(dbConnectId)*/:PSQL_LastError(dbConnectId), FunctionTrace, query);
                     continue;
                 }
                 else {
