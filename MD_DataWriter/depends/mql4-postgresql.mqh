@@ -56,6 +56,29 @@ enum ExecStatusType
         PGRES_COPY_BOTH,                        /* Copy In/Out data transfer in progress */
         PGRES_SINGLE_TUPLE                      /* single tuple from larger resultset */
 };
+
+enum ResultErrorField
+{
+        PG_DIAG_SEVERITY = 'S',
+        PG_DIAG_SEVERITY_NONLOCALIZED = 'V',
+        PG_DIAG_SQLSTATE = 'C',
+        PG_DIAG_MESSAGE_PRIMARY = 'M',
+        PG_DIAG_MESSAGE_DETAIL = 'D',
+        PG_DIAG_MESSAGE_HINT = 'H',
+        PG_DIAG_STATEMENT_POSITION = 'P',
+        PG_DIAG_INTERNAL_POSITION = 'p',
+        PG_DIAG_INTERNAL_QUERY = 'q',
+        PG_DIAG_CONTEXT = 'W',
+        PG_DIAG_SOURCE_FILE = 'F',
+        PG_DIAG_SOURCE_LINE = 'L',
+        PG_DIAG_SOURCE_FUNCTION = 'R',
+        
+        PG_DIAG_SCHEMA_NAME = 's',
+        PG_DIAG_TABLE_NAME = 't',
+        PG_DIAG_COLUMN_NAME = 'c',
+        PG_DIAG_DATATYPE_NAME = 'd',
+        PG_DIAG_CONSTRAINT_NAME = 'n'
+};
  
 
 #import "MD_DataWriter/libpq.dll"
@@ -64,6 +87,8 @@ enum ExecStatusType
 
 //extern PGconn *PQconnectdb(const char *conninfo);
 PTR32 PQconnectdb(const uchar &conninfo[]);
+// void PQreset(PGconn *conn);
+void PQreset(PTR32 conn);
 //extern void PQfinish(PGconn *conn);
 void PQfinish(PTR32 conn);
 //extern ConnStatusType PQstatus(const PGconn *conn);
@@ -83,6 +108,8 @@ void PQclear(PTR32 res);
 ExecStatusType PQresultStatus(const PTR32 res);
 //char *PQresultErrorMessage(const PGresult *res);
 PTR32 PQresultErrorMessage(const PTR32 res);
+// char *PQresultErrorField(const PGresult *res, int fieldcode);
+PTR32 PQresultErrorField(const PTR32 res, ResultErrorField fieldcode);
 
 //int PQntuples(const PGresult *res);
 int PQntuples(const PTR32 res);
@@ -103,31 +130,29 @@ PTR32 PQgetvalue(const PTR32 res, int tup_num, int field_num);
 
 // todo: retrieve and store by handle id
 string PSQL_LastErrorMessage = "";
+string PSQL_LastErrorCode = "";
+string PSQL_LastErrorString = "";
+bool PSQL_PrintErrors = false;
 
 //+------------------------------------------------------------------+
 
-bool init_PSQL(PTR32 &dbConnectId, string conninfo)
-  {
-    uchar conninfoChar[];
-    StringToCharArray(conninfo, conninfoChar);
-    dbConnectId=PQconnectdb(conninfoChar);
-    if (PQstatus(dbConnectId) != CONNECTION_OK) {
-      PSQL_LastErrorMessage = PointerToString(PQerrorMessage(dbConnectId));
-      return(false);
-    } else {
-      return(true);
-    }
+bool PSQL_Init(PTR32 &dbConnectId, string conninfo)
+{
+  uchar conninfoChar[];
+  StringToCharArray(conninfo, conninfoChar);
+  dbConnectId=PQconnectdb(conninfoChar);
+  if (PQstatus(dbConnectId) != CONNECTION_OK) {
+    PSQL_GetError(dbConnectId, false, PSQL_PrintErrors);
+    return(false);
+  } else {
+    return(true);
   }
+}
 
-void deinit_PSQL(PTR32 &dbConnectId)
-  {
-    PQfinish(dbConnectId);
-    dbConnectId = 0;
-  }
-  
-string PSQL_LastError(PTR32 dbConnectId) {
-    //if(StringLen(PSQL_LastErrorMessage) < 1) { PSQL_LastErrorMessage = PointerToString(PQerrorMessage(dbConnectId)); }
-    return PSQL_LastErrorMessage;
+void PSQL_Deinit(PTR32 &dbConnectId)
+{
+  PQfinish(dbConnectId);
+  dbConnectId = 0;
 }
 
 //+----------------------------------------------------------------------------+
@@ -141,14 +166,14 @@ bool PSQL_Query(PTR32 dbConnectId, string query)
     PTR32 res = PQexec(dbConnectId,queryChar);
     
     if(res <= 0) {
-      PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+      PSQL_GetError(res, true, PSQL_PrintErrors);
       returnResult = false;
     } else {
       switch(PQresultStatus(res)) {
         case PGRES_BAD_RESPONSE:
         case PGRES_NONFATAL_ERROR:
         case PGRES_FATAL_ERROR:
-          PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+          PSQL_GetError(res, true, PSQL_PrintErrors);
           returnResult = false;
           break;
           
@@ -181,14 +206,14 @@ int PSQL_FetchArray(PTR32 dbConnectId, string query, string &data[][])
     int res=PQexec(dbConnectId,queryChar);
     
     if(res <= 0) {
-      PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+      PSQL_GetError(res, true, PSQL_PrintErrors);
       returnResult = -1;
     } else {
       switch(PQresultStatus(res)) {
         case PGRES_BAD_RESPONSE:
         case PGRES_NONFATAL_ERROR:
         case PGRES_FATAL_ERROR:
-          PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(res));
+          PSQL_GetError(res, true, PSQL_PrintErrors);
           returnResult = -1;
           break;
           
@@ -225,6 +250,7 @@ int PSQL_FetchArray(PTR32 dbConnectId, string query, string &data[][])
 //+----------------------------------------------------------------------------+
 string PointerToString(PTR32 ptrStringMemory, int szString = -1)
 {
+    if(ptrStringMemory == 0) { return ""; }
     if(szString < 0) { szString = msvcrt::strlen(ptrStringMemory); }
     if(szString <= 0) { return ""; }
     
@@ -235,4 +261,20 @@ string PointerToString(PTR32 ptrStringMemory, int szString = -1)
     
     string str = CharArrayToString(ucValue);
     return str;
+}
+
+void PSQL_GetError(PTR32 sourceId, bool isResultError, bool print = false) {
+    if(isResultError) {
+        PSQL_LastErrorMessage = PointerToString(PQresultErrorMessage(sourceId));
+        PSQL_LastErrorCode = PointerToString(PQresultErrorField(sourceId, PG_DIAG_SQLSTATE));
+        PSQL_LastErrorString = PSQL_LastErrorCode + " - " + PSQL_LastErrorMessage;
+    } else {
+        PSQL_LastErrorMessage = PointerToString(PQerrorMessage(sourceId));
+        PSQL_LastErrorCode = IntegerToString(PQstatus(sourceId));
+        PSQL_LastErrorString = PSQL_LastErrorCode + " - " + PSQL_LastErrorMessage;
+    }
+    
+    if(print) {
+        Print("PgSQL error: " + PSQL_LastErrorString);
+    }
 }

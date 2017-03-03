@@ -17,13 +17,13 @@ class DataWriterManager {
     public:
     ~DataWriterManager();
     
-    int addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
+    int addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
     DataWriter *dWriters[];
     
     bool hasCsv();
     
     void removeDataWriter(int index);
-    void removeAllDataWriters(bool closeGlobal = false);
+    void removeAllDataWriters();
     
     bool queryRunByIndex(int index, string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     bool queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
@@ -40,6 +40,9 @@ class DataWriterManager {
     bool scriptRunByIndex(int index, string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     bool scriptRun(string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
     
+    void resetFatalErrorByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    void resetFatalErrors(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    
 //    bool scriptRetrieveRowsByIndex();
 //    bool scriptRetrieveRows();
 //    
@@ -48,18 +51,18 @@ class DataWriterManager {
 };
 
 void DataWriterManager::~DataWriterManager() {
-    removeAllDataWriters(true);
+    removeAllDataWriters();
 }
 
 bool DataWriterManager::hasCsv() {
     return (ArraySize(dwCsvIds) > 0);
 }
 
-int DataWriterManager::addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, bool initCommon=false, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
+int DataWriterManager::addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
     int size = ArraySize(dWriters); // assuming 1-based
     ArrayResize(dWriters, size+1);
     
-    dWriters[size] = new DataWriter(dbType, connectRetries, connectRetryDelaySecs, initCommon, param, param2, param3, param4, param5, param6, param7);
+    dWriters[size] = new DataWriter(dbType, connectRetries, connectRetryDelaySecs, param, param2, param3, param4, param5, param6, param7);
     
     if(dbType == DW_Csv) { MC_Common::ArrayPush(dwCsvIds, size); }
     
@@ -70,10 +73,10 @@ void DataWriterManager::removeDataWriter(int index) {
     if(CheckPointer(dWriters[index]) == POINTER_DYNAMIC) { delete(dWriters[index]); }
 }
 
-void DataWriterManager::removeAllDataWriters(bool closeGlobal = false) {
+void DataWriterManager::removeAllDataWriters() {
     int dWritersLength = ArraySize(dWriters);
     for(int i = 0; i < dWritersLength; i++) {
-        dWriters[i].closeConnection(closeGlobal);
+        dWriters[i].disconnect();
         removeDataWriter(i);
     }
     
@@ -177,4 +180,19 @@ bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-
     }
 
     return finalResult;
+}
+
+void DataWriterManager::resetFatalErrorByIndex(int index,DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+    if(forDbType > -1 && forDbType != dWriters[index].dbType) { return; }
+    if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return; }
+    
+    dWriters[index].blockingError = false;
+}
+
+void DataWriterManager::resetFatalErrors(DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+    int dWritersLength = ArraySize(dWriters);
+    
+    for(int i = 0; i < dWritersLength; i++) {
+        resetFatalErrorByIndex(i, forDbType, ignoreDbType);
+    }
 }
