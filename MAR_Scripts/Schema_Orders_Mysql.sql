@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS enum_exn_type (id INTEGER NOT NULL UNIQUE PRIMARY KEY, name VARCHAR(64));
 INSERT IGNORE INTO enum_exn_type VALUES (-1, 'Unspecified');
 INSERT IGNORE INTO enum_exn_type VALUES (0, 'Other');
-INSERT IGNORE INTO enum_exn_type VALUES (1, 'USA § 988(a)(1)(B)');
+INSERT IGNORE INTO enum_exn_type VALUES (1, 'IRC 988(a)(1)(B)');
 
 CREATE TABLE IF NOT EXISTS enum_spt_phase (id INT PRIMARY KEY NOT NULL UNIQUE, name VARCHAR(64));
 INSERT IGNORE INTO enum_spt_phase VALUES (-1, 'Unspecified');

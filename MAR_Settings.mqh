@@ -8,7 +8,7 @@
 #property strict
 //+------------------------------------------------------------------+
 input int DebugLevel = 2; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
-input bool LogAllErrorsToFile = true; // LogAllErrorsToFile
+input bool LogAllErrorsToFile = false; // LogAllErrorsToFile
 input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
 input string TimingOptions = "-------------------- Timing --------------------";
 input int DelayedEntrySeconds = 10;
@@ -34,20 +34,32 @@ input bool UseAllWriters = false; // UseAllWriters true, or only use first succe
 input int ConnectRetries = 5;
 input int ConnectRetryDelaySecs = 1;
 
-input bool EnableMysql = false;
-input string MyHost = "";
-input string MyUser = "";
-input string MyPass = "";
-input string MyOrderDbName = "";
-input int MyPort = 3306;
-input int MySocket = 0;
-input int MyClientFlags = 0;
+//input bool EnableMysql = false;
+//input string MyHost = "";
+//input string MyUser = "";
+//input string MyPass = "";
+//input string MyOrderDbName = "";
+//input int MyPort = 3306;
+//input int MySocket = 0;
+//input int MyClientFlags = 0;
 
-input bool EnablePostgres = false;
-input string PgConnectOrderString = "hostaddr=127.0.0.1 port=5432 dbname=mydb user=username password=password connect_timeout=5";
+bool EnableMysql = false;
+string MyHost = "";
+string MyUser = "";
+string MyPass = "";
+string MyOrderDbName = "";
+int MyPort = 3306;
+int MySocket = 0;
+int MyClientFlags = 0;
 
-input bool EnableSqlite = true;
+input bool EnablePostgres = true;
+input string PgConnectOrderString = "hostaddr=127.0.0.1 port=9122 dbname=forextest user=mt4 password=U?G~.e?Mc25xZgsJ7b$/`P|it9h4CwwW connect_timeout=5";
+
+input bool EnableSqlite = false;
 input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
 
-input bool EnableSqlText = false;
-input string TxOrderDbPath = "";
+//input bool EnableSqlText = false;
+//input string TxOrderDbPath = "";
+
+bool EnableSqlText = false;
+string TxOrderDbPath = "";

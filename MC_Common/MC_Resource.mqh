@@ -31,7 +31,7 @@ class ResourceStore {
     public:
     ~ResourceStore();
     bool loadTextResource(string fileName);
-    bool loadTextResource(string fileName, string &dataIn[]);
+    bool loadTextResource(string fileName, const string &dataIn[]);
     bool getTextResource(string fileName, string &dataOut[]);
     
     // bool loadByteResource(string fileName);
@@ -74,7 +74,7 @@ bool ResourceStore::loadTextResource(string fileName) {
     else { return false; }
 }
 
-bool ResourceStore::loadTextResource(string fileName, string &dataIn[]) {
+bool ResourceStore::loadTextResource(string fileName, const string &dataIn[]) {
     int loc = MC_Common::ArrayTsearch(fileNames, fileName);
     
     if(loc < 0) {
@@ -103,4 +103,4 @@ bool ResourceStore::getTextResource(string fileName, string &dataOut[]) {
     else { return false; }
 }
 
-ResourceStore *ResourceMan;
+ResourceStore ResourceMan;

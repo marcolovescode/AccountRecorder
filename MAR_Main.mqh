@@ -8,14 +8,7 @@
 #property strict
 //+------------------------------------------------------------------+
 
-//#define _LOCALRESOURCE
-
 #include "MC_Common/MC_Resource.mqh"
-
-#ifdef _LOCALRESOURCE
-    #include "MAR_Scripts/MAR_Scripts.mqh"
-#endif
-
 #include "MD_DataWriter/MD_DataWriterManager.mqh"
 #include "MAR_Settings.mqh"
 
@@ -81,17 +74,19 @@ bool MainAccountRecorder::doFirstRun() {
 bool MainAccountRecorder::setupConnections() {
     //int loc;
     
-    if(EnableSqlite) {
-        dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, true, SlOrderDbPath);
-    }
+    // todo: implement ordering, modes (0=disabled, 1=normal, 2=always)
+    
+    //if(EnableMysql) {
+    //    dWriterMan.addDataWriter(DW_Mysql, ConnectRetries, ConnectRetryDelaySecs, true, 
+    //        MyHost, MyUser, MyPass, MyOrderDbName, MyPort, MySocket, MyClientFlags);
+    //}
     
     if(EnablePostgres) {
         dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, true, PgConnectOrderString);
     }
     
-    if(EnableMysql) {
-        dWriterMan.addDataWriter(DW_Mysql, ConnectRetries, ConnectRetryDelaySecs, true, 
-            MyHost, MyUser, MyPass, MyOrderDbName, MyPort, MySocket, MyClientFlags);
+    if(EnableSqlite) {
+        dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, true, SlOrderDbPath);
     }
     
     return true;
@@ -101,6 +96,26 @@ bool MainAccountRecorder::checkSchema() {
     int expectedTableCount = 16;
     int tableCount = 0;
     
+    // todo: handle schema readiness separately for pgsql and sqlite
+    
+    if(EnablePostgres) {
+        if(!dWriterMan.queryRetrieveOne(
+            "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');"
+            , tableCount
+            , 0
+            , DW_Postgres
+            )
+        ) {
+            MC_Error::ThrowError(ErrorNormal, "PgSQL: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+        } else {
+            schemaReady = (tableCount == expectedTableCount);
+            
+            if(!schemaReady) {
+                MC_Error::ThrowError(ErrorNormal, "PgSQL Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+            }
+        }
+    }
+    
     if(EnableSqlite) {
         if(!dWriterMan.queryRetrieveOne(
             "select count(type) from sqlite_master where sqlite_master.type = 'table' and sqlite_master.name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');"
@@ -109,14 +124,14 @@ bool MainAccountRecorder::checkSchema() {
             , DW_Sqlite
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+            MC_Error::ThrowError(ErrorNormal, "SQLite: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
         } else {
             schemaReady = (tableCount == expectedTableCount);
+            
+            if(!schemaReady) {
+                MC_Error::ThrowError(ErrorNormal, "SQLite Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+            }
         }
-    }
-    
-    if(!schemaReady) {
-        MC_Error::ThrowError(ErrorNormal, "Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
     }
     
     return schemaReady;
@@ -127,16 +142,18 @@ bool MainAccountRecorder::setupSchema() {
 
     MC_Error::PrintInfo(ErrorInfo, "Setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
 
-    if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, UseAllWriters);
-    }
+    // todo: ordering and modes for DB types
+
+    //if(EnableMysql && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Mysql.sql", scriptSrc)) {
+    //    dWriterMan.scriptRun(scriptSrc, DW_Mysql, -1, UseAllWriters);
+    //}
 
     if(EnablePostgres && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Postgres.sql", scriptSrc)) {
         dWriterMan.scriptRun(scriptSrc, DW_Postgres, -1, UseAllWriters);
     }
 
-    if(EnableMysql && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Mysql.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Mysql, -1, UseAllWriters);
+    if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
+        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, UseAllWriters);
     }
     
     checkSchema();
@@ -538,10 +555,9 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
     // sell orders at Ask, so OrderOpenPrice()-Ask
     // alt: what is mode_tickvalue?  OrderProfit() - OrderCommision() ) / OrderLots() / MarketInfo( OrderSymbol(), MODE_TICKVALUE
     
-    query = StringFormat("INSERT INTO txn_orders_equity (txn_uuid, eqt_uuid, lots, price, stoploss, takeprofit, commission, swap, gross) VALUES ('%s', '%s', '%f', '%f', '%f', '%f', '%f', '%f', '%f');"
+    query = StringFormat("INSERT INTO txn_orders_equity (txn_uuid, eqt_uuid, price, stoploss, takeprofit, commission, swap, gross) VALUES ('%s', '%s', '%f', '%f', '%f', '%f', '%f', '%f');"
         , orderUuid
         , equityUuid
-        , OrderLots()
         , OrderType() == OP_SELL ? MarketInfo(OrderSymbol(), MODE_ASK) : MarketInfo(OrderSymbol(), MODE_BID)
         , OrderStopLoss()
         , OrderTakeProfit()
