@@ -11,17 +11,10 @@
 #include "../MC_Common/MC_Common.mqh"
 
 class DataWriterManager {
-    private:
-    int dwCsvIds[];
-    
     public:
     ~DataWriterManager();
     
     int addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
-    DataWriter *dWriters[];
-    
-    bool hasCsv();
-    
     void removeDataWriter(int index);
     void removeAllDataWriters();
     
@@ -40,22 +33,24 @@ class DataWriterManager {
     bool scriptRunByIndex(int index, string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     bool scriptRun(string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
     
-    void resetFatalErrorByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    void resetFatalErrors(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    
 //    bool scriptRetrieveRowsByIndex();
 //    bool scriptRetrieveRows();
 //    
 //    bool scriptRetrieveOneByIndex();
 //    bool scriptRetrieveOne();
+
+    void resetBlockingErrorByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    void resetBlockingErrors(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+
+    bool hasCsv();
+
+    private:
+    DataWriter *dWriters[];
+    int dwCsvIds[];
 };
 
 void DataWriterManager::~DataWriterManager() {
     removeAllDataWriters();
-}
-
-bool DataWriterManager::hasCsv() {
-    return (ArraySize(dwCsvIds) > 0);
 }
 
 int DataWriterManager::addDataWriter(DataWriterType dbType, int connectRetries=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -182,17 +177,21 @@ bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-
     return finalResult;
 }
 
-void DataWriterManager::resetFatalErrorByIndex(int index,DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+void DataWriterManager::resetBlockingErrorByIndex(int index,DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
     if(forDbType > -1 && forDbType != dWriters[index].dbType) { return; }
     if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return; }
     
     dWriters[index].blockingError = false;
 }
 
-void DataWriterManager::resetFatalErrors(DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+void DataWriterManager::resetBlockingErrors(DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
     int dWritersLength = ArraySize(dWriters);
     
     for(int i = 0; i < dWritersLength; i++) {
-        resetFatalErrorByIndex(i, forDbType, ignoreDbType);
+        resetBlockingErrorByIndex(i, forDbType, ignoreDbType);
     }
+}
+
+bool DataWriterManager::hasCsv() {
+    return (ArraySize(dwCsvIds) > 0);
 }

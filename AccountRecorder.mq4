@@ -51,7 +51,7 @@ int OnInit() {
     MC_Error::PrintInfo(ErrorInfo, "Waiting for first run...");
     Comment("AccountRecorder\r\n"
         , "\r\n"
-        , "Starting first run " + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds" : "") + "\r\n"
+        , "Starting first run " + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds..." : "") + "\r\n"
         );
     
     return INIT_SUCCEEDED;

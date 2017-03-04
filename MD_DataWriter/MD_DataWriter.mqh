@@ -35,9 +35,32 @@ enum DataWriterType {
 };
 
 class DataWriter {
+    public:
+    DataWriterType dbType;
+    bool blockingError;
+    
+    DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
+    ~DataWriter();
+    
+    void setParams(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
+    bool initConnection(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
+    bool reconnect(bool attempt = true);
+    bool connect();
+    void disconnect();
+    bool checkConnection(bool doReconnect = false, bool doAttempt = true);
+    
+    bool queryRun(string dataInput);
+    int queryRetrieveRows(string query, string &result[][]);
+    template<typename T>
+    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/);
+
+    bool getCsvHandle(int &outFileHandle);
+
     private:
     CSQLite3Base *sqlite;
+    
     int dbConnectId; // mysql, postgres
+    
     string dbUser;
     string dbPass;
     string dbName;
@@ -45,43 +68,21 @@ class DataWriter {
     int dbPort;
     int dbSocket;
     int dbClient;
+    
     string dbConnectString;
+    
     string filePath; // sqlite, text
     int fileHandle; // text
     string lineComment; // text
     char csvSep;
     
-    string actParamDataInput;
-
-    public:
-    DataWriterType dbType;
-    DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
-    ~DataWriter();
-    
-    void setParams(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
-    
-    bool initConnection(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
-    bool connect();
-    bool checkConnection(bool doReconnect = false, bool doAttempt = true);
-    void disconnect();
-    bool reconnect(bool attempt = true);
+    int connectRetries;
+    int connectRetryDelaySecs;
     
     bool checkSafe();
     
     template<typename T>
     bool handleErrorRetry(T errorCode, int errorLevel, string message, string funcTrace="", string params="", bool printToFile = false);
-
-    int connectRetries;
-    int connectRetryDelaySecs;
-    bool blockingError;
-    
-    bool queryRun(string dataInput);
-    bool getCsvHandle(int &outFileHandle);
-    
-    int queryRetrieveRows(string query, string &result[][]);
-    
-    template<typename T>
-    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/);
 };
 
 void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecsIn=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -96,6 +97,11 @@ void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int
         setParams(param, param2, param3, param4, param5, param6, param7);
         initConnection(); 
     }
+}
+
+void DataWriter::~DataWriter() {
+    disconnect();
+    if(CheckPointer(sqlite) == POINTER_DYNAMIC) { delete(sqlite); }
 }
 
 void DataWriter::setParams(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -134,19 +140,34 @@ void DataWriter::setParams(string param="", string param2="", string param3="", 
     }
 }
 
-void DataWriter::~DataWriter() {
-    disconnect();
-    if(CheckPointer(sqlite) == POINTER_DYNAMIC) { delete(sqlite); }
-}
-
-
-
 bool DataWriter::initConnection(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
     if(StringLen(param) > 0) {
         setParams(param, param2, param3, param4, param5, param6, param7);
     }
     
     return reconnect(true);
+}
+
+bool DataWriter::reconnect(bool attempt = true) {
+    bool bResult;
+    int attemptsMax = !attempt || (connectRetries < 1) ? 1 : connectRetries;
+    
+    for(int i = 0; i < attemptsMax; i++) {
+        if(i > 0) { MC_Error::PrintInfo(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
+        
+        disconnect();
+        bResult = connect();
+        
+        if(bResult) { blockingError = false; return true; }
+        else {
+            Sleep(connectRetryDelaySecs * 1000);
+        }
+    }
+
+    blockingError = true;
+    MC_Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + dbType + " after " + connectRetries + " attempts", FunctionTrace);
+
+    return false;
 }
 
 bool DataWriter::connect() {
@@ -193,6 +214,33 @@ bool DataWriter::connect() {
     }
 }
 
+void DataWriter::disconnect() {
+    switch(dbType) {
+        case DW_Sqlite:
+            sqlite.Disconnect();
+            break;
+        
+        //case DW_Mysql:
+        //    deinit_MySQL(dbConnectId);
+        //    dbConnectId = 0;
+        //    break;
+
+        case DW_Postgres:
+            PSQL_Deinit(dbConnectId);
+            dbConnectId = 0;
+            break;
+
+        case DW_Text:
+        case DW_Csv:
+            if(fileHandle != INVALID_HANDLE) { FileClose(fileHandle); }
+            break;
+        
+        default:
+            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            break;
+    }
+}
+
 bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = true) {
     switch(dbType) {
         case DW_Sqlite:
@@ -229,144 +277,8 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
     }
 }
 
-void DataWriter::disconnect() {
-    switch(dbType) {
-        case DW_Sqlite:
-            sqlite.Disconnect();
-            break;
-        
-        //case DW_Mysql:
-        //    deinit_MySQL(dbConnectId);
-        //    dbConnectId = 0;
-        //    break;
-
-        case DW_Postgres:
-            PSQL_Deinit(dbConnectId);
-            dbConnectId = 0;
-            break;
-
-        case DW_Text:
-        case DW_Csv:
-            if(fileHandle != INVALID_HANDLE) { FileClose(fileHandle); }
-            break;
-        
-        default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
-            break;
-    }
-}
-
-bool DataWriter::reconnect(bool attempt = true) {
-    bool bResult;
-    int attemptsMax = !attempt || (connectRetries < 1) ? 1 : connectRetries;
-    
-    for(int i = 0; i < attemptsMax; i++) {
-        if(i > 0) { MC_Error::PrintInfo(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
-        
-        disconnect();
-        bResult = connect();
-        
-        if(bResult) { blockingError = false; return true; }
-        else {
-            Sleep(connectRetryDelaySecs * 1000);
-        }
-    }
-
-    blockingError = true;
-    MC_Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + dbType + " after " + connectRetries + " attempts", FunctionTrace);
-
-    return false;
-}
-
-bool DataWriter::checkSafe() {
-    if(blockingError) {
-        MC_Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
-        return false;
-    }
-    
-    if(!checkConnection(true)) {
-        MC_Error::ThrowError(ErrorMinor, "DB not connected, skipping.", FunctionTrace, dbType);
-        return false;
-    }
-    
-    return true;
-}
-
-template<typename T>
-bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, string funcTrace="", string params="", bool printToFile=false) {
-    // todo: if the issue is connectivity, then reconnect and retry the source function
-    // recall source func, using params actParamDataInput and actParamForDbType
-    int sleepInterval = 0; 
-    int numErrorCode = typename(errorCode) == "int" || typename(errorCode) == "long" ? errorCode : -1;
-        // PSQL returns string error codes
-    string strErrorCode = typename(errorCode) == "string" ? errorCode : "";  
-        
-    switch(dbType) {
-        case DW_Sqlite:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
-            
-            if(blockingError) { return false; }
-            
-            switch(numErrorCode) {
-                // todo: disconnected?
-                case 5: //SQLITE_BUSY
-                case 6: //SQLITE_LOCKED
-                case 10: //SQLITE_IOERR
-                    sleepInterval = (connectRetryDelaySecs*1000)+(500*MathRand()/32767);
-                    MC_Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
-                    Sleep(sleepInterval); // add fuzz up to 500ms
-                    return true;
-                
-                default:
-                    return false;
-            }
-            break;
-
-        //case DW_Mysql:
-        //    MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
-        //    break;
-
-        case DW_Postgres:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
-            
-            if(blockingError) { return false; }
-            
-            if(strErrorCode == "" || strErrorCode == "1" // blank error code and message might mean a null pointer, meaning no connection
-                || strErrorCode == "10061" // ECONNREFUSED
-                || strErrorCode == "10053" // SOCECONNABORTED
-                || strErrorCode == "10054" // ECONNRESET
-                || strErrorCode == "10060" // ETIMEDOUT
-                || strErrorCode == "10048" // EADDRINUSE
-                || strErrorCode == "08000" // connection_exception
-                || strErrorCode == "08003" // connection_does_not_exist
-                || strErrorCode == "08006" // connection_failure
-                || strErrorCode == "08001" // sqlclient_unable_to_establish_connection
-                || strErrorCode == "08004" // sqlserver_rejected_establishment_of_sqlconnection
-                || strErrorCode == "08007" // transaction_resolution_unknown
-                || strErrorCode == "08P01" // protocol_violation
-            ) {
-                return checkConnection(true, true);
-            } else { return false; }
-            break;
-
-        case DW_Text:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
-            if(blockingError) { return false; }
-            break;
-        
-        default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
-            if(blockingError) { return false; }
-            break;
-    }
-    
-    return false;
-}
-
 bool DataWriter::queryRun(string dataInput) {
     if(!checkSafe()) { return false; }
-
-    actParamDataInput = dataInput;
     
     int result; bool bResult; string fileContents; bool done = false; int retryCount = 0;
     int errorCode = -1; bool working = true;
@@ -423,40 +335,6 @@ bool DataWriter::queryRun(string dataInput) {
             
             default:
                 MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
-                return false;
-        }
-    }
-    
-    return false;
-}
-
-bool DataWriter::getCsvHandle(int &outFileHandle) {
-    // This is needed because CSV is written by FileWrite, which takes a variable number of params
-    // that is determined at code level
-    
-    if(!checkSafe()) { return false; }
-    
-    bool working = true;
-    for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
-        working = false;
-        switch(dbType) {
-            case DW_Csv:
-                if(fileHandle != INVALID_HANDLE) {
-                    if(!FileSeek(fileHandle, 0, SEEK_END)) { // todo: do while loop, while(!FileIsEnding(fileHandle) && i < 10);
-                        working = handleErrorRetry(GetLastError(), ErrorNormal, "Could not seek file: ", FunctionTrace, filePath); 
-                        continue;
-                    }
-            
-                    outFileHandle = fileHandle;
-    
-                    return true;
-                } else {
-                    MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
-                    false;
-                }    
-                
-            default:
-                MC_Error::ThrowError(ErrorNormal, "dbType is not CSV", FunctionTrace, dbType);
                 return false;
         }
     }
@@ -635,6 +513,123 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
         } else {
             MC_Error::PrintInfo(ErrorMinor, "Query did not return data: ", FunctionTrace, query, ErrorForceFile);
             return false; 
+        }
+    }
+    
+    return false;
+}
+
+bool DataWriter::checkSafe() {
+    if(blockingError) {
+        MC_Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
+        return false;
+    }
+    
+    if(!checkConnection(true)) {
+        MC_Error::ThrowError(ErrorMinor, "DB not connected, skipping.", FunctionTrace, dbType);
+        return false;
+    }
+    
+    return true;
+}
+
+template<typename T>
+bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, string funcTrace="", string params="", bool printToFile=false) {
+    int sleepInterval = 0; 
+    int numErrorCode = typename(errorCode) == "int" || typename(errorCode) == "long" ? errorCode : -1;
+        // PSQL returns string error codes
+    string strErrorCode = typename(errorCode) == "string" ? errorCode : "";  
+        
+    switch(dbType) {
+        case DW_Sqlite:
+            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
+            
+            if(blockingError) { return false; }
+            
+            switch(numErrorCode) {
+                // todo: disconnected?
+                case 5: //SQLITE_BUSY
+                case 6: //SQLITE_LOCKED
+                case 10: //SQLITE_IOERR
+                    sleepInterval = (connectRetryDelaySecs*1000)+(500*MathRand()/32767);
+                    MC_Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
+                    Sleep(sleepInterval); // add fuzz up to 500ms
+                    return true;
+                
+                default:
+                    return false;
+            }
+            break;
+
+        //case DW_Mysql:
+        //    MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
+        //    break;
+
+        case DW_Postgres:
+            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
+            
+            if(blockingError) { return false; }
+            
+            if(strErrorCode == "" || strErrorCode == "1" // blank error code and message might mean a null pointer, meaning no connection
+                || strErrorCode == "10061" // ECONNREFUSED
+                || strErrorCode == "10053" // SOCECONNABORTED
+                || strErrorCode == "10054" // ECONNRESET
+                || strErrorCode == "10060" // ETIMEDOUT
+                || strErrorCode == "10048" // EADDRINUSE
+                || strErrorCode == "08000" // connection_exception
+                || strErrorCode == "08003" // connection_does_not_exist
+                || strErrorCode == "08006" // connection_failure
+                || strErrorCode == "08001" // sqlclient_unable_to_establish_connection
+                || strErrorCode == "08004" // sqlserver_rejected_establishment_of_sqlconnection
+                || strErrorCode == "08007" // transaction_resolution_unknown
+                || strErrorCode == "08P01" // protocol_violation
+            ) {
+                return checkConnection(true, true);
+            } else { return false; }
+            break;
+
+        case DW_Text:
+            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
+            if(blockingError) { return false; }
+            break;
+        
+        default:
+            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            if(blockingError) { return false; }
+            break;
+    }
+    
+    return false;
+}
+
+bool DataWriter::getCsvHandle(int &outFileHandle) {
+    // This is needed because CSV is written by FileWrite, which takes a variable number of params
+    // that is determined at code level
+    
+    if(!checkSafe()) { return false; }
+    
+    bool working = true;
+    for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
+        working = false;
+        switch(dbType) {
+            case DW_Csv:
+                if(fileHandle != INVALID_HANDLE) {
+                    if(!FileSeek(fileHandle, 0, SEEK_END)) { // todo: do while loop, while(!FileIsEnding(fileHandle) && i < 10);
+                        working = handleErrorRetry(GetLastError(), ErrorNormal, "Could not seek file: ", FunctionTrace, filePath); 
+                        continue;
+                    }
+            
+                    outFileHandle = fileHandle;
+    
+                    return true;
+                } else {
+                    MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
+                    false;
+                }    
+                
+            default:
+                MC_Error::ThrowError(ErrorNormal, "dbType is not CSV", FunctionTrace, dbType);
+                return false;
         }
     }
     
