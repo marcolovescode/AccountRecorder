@@ -128,7 +128,6 @@ PTR32 PQgetvalue(const PTR32 res, int tup_num, int field_num);
 
 #import
 
-// todo: retrieve and store by handle id
 string PSQL_LastErrorMessage = "";
 string PSQL_LastErrorCode = "";
 string PSQL_LastErrorString = "";
@@ -243,11 +242,6 @@ int PSQL_FetchArray(PTR32 dbConnectId, string query, string &data[][])
     return returnResult;
   }
 
-//+----------------------------------------------------------------------------+
-//| Lovely function that helps us to get ANSI strings from DLLs to our UNICODE |
-//| format                                                                     |
-//| http://forum.mql4.com/60708                                                |
-//+----------------------------------------------------------------------------+
 string PointerToString(PTR32 ptrStringMemory, int szString = -1)
 {
     if(ptrStringMemory == 0) { return ""; }

@@ -3,13 +3,13 @@
 #property strict
 //+------------------------------------------------------------------+
 
-#define _LOCALRESOURCE // for MAR_Scripts. Comment out to force reading SQL scripts from directory instead of internally
-    // If defined, this loads scripts from "MAR_Scripts/MAR_Scripts.mqh" into the text resource store. See "MAR_Main.mqh"
+#define _LOCALRESOURCE // for MAR_Scripts.
+    // If defined, this loads scripts from "MAR_Scripts/MAR_Scripts.mqh" into the text resource store.
     // MAR_Scripts.mqh can be generated using "MAR_Scripts/CompileScripts.ahk" run by AutoHotkey.
     //
-    // IMPORTANT NOTE: If you load by actual files, you need to
-    // create a hard link (aka directory junction) in MQL4/Files
-    // to MQL4/Experts/M_AccountRecorder/MAR_Scripts
+    // If not defined, will load files directly in "MAR_Scripts/" folder. IMPORTANT NOTE:
+    // you must create a hard link (aka directory junction) in MQL4/Files
+    // to MQL4/Experts/[current folder if any]/MAR_Scripts
     // to bypass the FileOpen sandbox imposed by MT4
 
 #include "MC_Common/MC_Common.mqh"
@@ -37,23 +37,56 @@ int OnInit() {
     
     MAR_LoadScripts();
     
+    MC_Error::PrintInfo(ErrorInfo, "AccountRecorder");
+    MC_Error::PrintInfo(ErrorInfo, "Connecting to databases...");
+    Comment("AccountRecorder\r\n"
+        , "\r\n"
+        , "Connecting to databases..."
+        );
+    
     AccountMan = new MainAccountRecorder();
     
-    if(DelayedEntrySeconds > 0) { MC_Common::EventSetTimerReliable(DelayedEntrySeconds); }
-    else { MC_Common::EventSetMillisecondTimerReliable(255); }
+    SetTimer(true);
+    
+    MC_Error::PrintInfo(ErrorInfo, "Waiting for first run...");
+    Comment("AccountRecorder\r\n"
+        , "\r\n"
+        , "Starting first run " + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds" : "") + "\r\n"
+        );
     
     return INIT_SUCCEEDED;
 }
 
+bool SetTimer(bool firstRun = false) {
+    bool result = false;
+    
+    if(firstRun) {
+        if(DelayedEntrySeconds > 0) { result = MC_Common::EventSetTimerReliable(DelayedEntrySeconds); }
+        else { result = MC_Common::EventSetMillisecondTimerReliable(255); }
+    } else {
+        result = MC_Common::EventSetTimerReliable(MC_Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
+    }
+    
+    if(!result) {
+        MC_Error::ThrowFatalError(ErrorFatal, "Could not set run timer; try to reload the EA.", FunctionTrace);
+    }
+    
+    return result;
+}
+
 void OnTimer() {
+    EventKillTimer();
+    
     if(FirstTimerRun) {
         if(AccountMan.doFirstRun()) { // this will fail if not connected or schema not verified
-            EventKillTimer();
             FirstTimerRun = false;
-            MC_Common::EventSetTimerReliable(MC_Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
-        }    
+            SetTimer(false);
+        } else {
+            SetTimer(true);
+        }
     } else {
         AccountMan.doCycle();
+        SetTimer(false);
     }
 }
 

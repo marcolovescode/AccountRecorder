@@ -34,11 +34,11 @@ class MC_Error {
     static int FatalCounter;
     static int DebugLevel;
     
-    static bool PrintErrorToFile(string message);
-    static void PrintError(int level, string message, string funcTrace, bool fatal, bool info, string params = "", ErrorPrintLocation location = ErrorDoDefault);
-    static void ThrowError(int level, string message, string funcTrace, string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault);
-    static void ThrowFatalError(int level, string message, string funcTrace, string params = "", ErrorPrintLocation location = ErrorDoDefault);
-    static void PrintInfo(int level, string message, string funcTrace, string params = "", ErrorPrintLocation location = ErrorDoDefault);
+    static bool PrintErrorToFile(string message = "");
+    static void PrintError(int level, string message = "", string funcTrace = "", bool fatal = false, bool info = false, string params = "", ErrorPrintLocation location = ErrorDoDefault);
+    static void ThrowError(int level, string message = "", string funcTrace = "", string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault);
+    static void ThrowFatalError(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault);
+    static void PrintInfo(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault);
 };
 
 //#include "MMT_Settings.mqh"
@@ -50,7 +50,7 @@ int MC_Error::FatalCounter = 0;
 int MC_Error::DebugLevel = 2; // user configurable
 bool MC_Error::LogAllErrorsToFile = false; // user configurable
 
-bool MC_Error::PrintErrorToFile(string message) {
+bool MC_Error::PrintErrorToFile(string message = "") {
     // todo: how to close upon program exit?
     
     if((FileHandle == INVALID_HANDLE) || FileHandle == -1) {
@@ -69,14 +69,14 @@ bool MC_Error::PrintErrorToFile(string message) {
     } else { return false; }
 }
 
-void MC_Error::PrintError(int level, string message, string funcTrace, bool fatal, bool info=false, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void MC_Error::PrintError(int level, string message = "", string funcTrace = "", bool fatal = false, bool info=false, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     // todo: alerts
     if(fatal && FatalCounter > 0 && !PrintAllFatalErrors) { return; } // if fatal, only print an error message once. 
     
     string errorMsg = StringConcatenate(
         fatal ? StringConcatenate(FatalCounter, " FATAL ") : "", 
         level == ErrorInfo ? "INFO: " : level == ErrorMinor ? "MINOR: " : "ERROR: ", 
-        funcTrace, " - ", 
+        funcTrace, StringLen(funcTrace) > 0 ? " - " : "", 
         message,
         StringLen(params) > 0 ? StringConcatenate(" - PARAMS: ", params) : ""
         );
@@ -87,15 +87,15 @@ void MC_Error::PrintError(int level, string message, string funcTrace, bool fata
     } 
 }
 
-void MC_Error::ThrowError(int level, string message, string funcTrace, string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault) {
+void MC_Error::ThrowError(int level, string message = "", string funcTrace = "", string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault) {
     PrintError(level, message, funcTrace, fatal, false, params, location);
     if(fatal) { FatalCounter++; ExpertRemove(); } // this calls OnDeinit then exits. this won't exit right away; event handler will finish processing.
 }
 
-void MC_Error::ThrowFatalError(int level, string message, string funcTrace, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void MC_Error::ThrowFatalError(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     ThrowError(level, message, funcTrace, params, true, location);
 }
 
-void MC_Error::PrintInfo(int level, string message, string funcTrace, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void MC_Error::PrintInfo(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     PrintError(level, message, funcTrace, false, true, params, location);
 }

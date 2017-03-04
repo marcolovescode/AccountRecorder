@@ -28,6 +28,8 @@ class MainAccountRecorder {
     
     datetime lastOrderTime;
     datetime lastEquityTime;
+    bool lastOrderSuccess;
+    bool lastEquitySuccess;
     
     bool firstWeekendNoticeFired;
     
@@ -40,34 +42,66 @@ class MainAccountRecorder {
     bool recordOrderSplits(string orderUuid);
     bool recordOrderExit(string orderUuid);
     bool recordOrderElection(string orderUuid);
-    void updateOrders();
-    void updateEquity();
-    bool doFirstRun();
+    bool updateOrders();
+    bool updateEquity();
+    bool doFirstRun(bool force = false);
+    bool doFirstConnect(bool force = false);
+    bool finishedCycle;
+    
+    void displayFeedback(bool firstRunFailed = false, bool isWeekend = false, bool schemaFailed = false, bool accountFailed = false);
 };
 
 void MainAccountRecorder::MainAccountRecorder() {
-    dWriterMan = new DataWriterManager();
-    setupConnections();
+    doFirstConnect();
 }
 
-bool MainAccountRecorder::doFirstRun() {
+bool MainAccountRecorder::doFirstConnect(bool force = false) {
+    if(CheckPointer(dWriterMan) == POINTER_DYNAMIC) { if(force) { delete(dWriterMan); } else { return false; } }
+
+    finishedCycle = false;
+
+    dWriterMan = new DataWriterManager();
+    setupConnections();
+    dWriterMan.resetFatalErrors(); // so first run can reconnect on first failed command
+    
+    finishedCycle = true;
+    return true;
+}
+
+bool MainAccountRecorder::doFirstRun(bool force = false) {
+    if(!finishedCycle && !force) { return false; } // todo: feedback?
+    
     if(!IsConnected()) {
         MC_Error::ThrowError(ErrorNormal, "Not connected to broker, will attempt first run on cycle.", FunctionTrace);
+        displayFeedback(true);
         return false;
     }
     
     MC_Error::PrintInfo(ErrorInfo, "Starting first run", FunctionTrace, NULL, ErrorForceTerminal);
+    displayFeedback(); // starting first run
+    
+    finishedCycle = false;
     
     if(!AccountMan.setupSchema()) {
         MC_Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
         dWriterMan.resetFatalErrors();
+        displayFeedback(true, false, true);
+        finishedCycle = true;
         return false;
     }
-    AccountMan.setupAccountRecords();
+    if(!AccountMan.setupAccountRecords()) {
+        MC_Error::ThrowError(ErrorNormal, "Aborting first run, could not create account records.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        dWriterMan.resetFatalErrors();
+        displayFeedback(true, false, true, true);
+        finishedCycle = true;
+        return false;
+    }
     AccountMan.doCycle(true);
     
-    MC_Error::PrintInfo(ErrorInfo, "First run complete", FunctionTrace, NULL, ErrorForceTerminal);
+    MC_Error::PrintInfo(ErrorInfo, "First run complete.", FunctionTrace, NULL, ErrorForceTerminal);
     firstRunComplete = true;
+    finishedCycle = true;
+    displayFeedback();
     
     return true;
 }
@@ -150,11 +184,11 @@ bool MainAccountRecorder::setupSchema() {
     //}
 
     if(EnablePostgres && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Postgres.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Postgres, -1, UseAllWriters);
+        dWriterMan.scriptRun(scriptSrc, DW_Postgres, -1, true);
     }
 
     if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, UseAllWriters);
+        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, true);
     }
     
     checkSchema();
@@ -193,6 +227,7 @@ bool MainAccountRecorder::setupAccountRecords() {
                 , curName
                 , curName
                 )
+            , -1, -1, true
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create identifying currency record", FunctionTrace);
@@ -216,6 +251,7 @@ bool MainAccountRecorder::setupAccountRecords() {
                 , actCompany
                 , actNum
                 )
+            , -1, -1, true
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create identifying account record", FunctionTrace);
@@ -230,9 +266,12 @@ void MainAccountRecorder::~MainAccountRecorder() {
 }
 
 void MainAccountRecorder::doCycle(bool force = false) {
+    if(!finishedCycle && !force) { return; } // todo: feedback?
+    
     if(!IsConnected()) {
         MC_Error::ThrowError(ErrorNormal, "Not connected to broker, cannot do cycle.", FunctionTrace);
         dWriterMan.resetFatalErrors();
+        displayFeedback(); // IsConnected() checked in feedback
         return;
     }
 
@@ -243,35 +282,45 @@ void MainAccountRecorder::doCycle(bool force = false) {
             if(!firstWeekendNoticeFired) {
                 MC_Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
                 firstWeekendNoticeFired = true;
-            } else if(!force) { dWriterMan.resetFatalErrors(); return; }
+            } else if(!force) { 
+                dWriterMan.resetFatalErrors(); 
+                displayFeedback(false, true);
+                return; 
+            }
         } else {
             firstWeekendNoticeFired = false;
         }
     }
     
+    finishedCycle = false;
+    displayFeedback();
+    
     if(!checkSchema()) {
         if(!setupSchema()) {
             MC_Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
             dWriterMan.resetFatalErrors();
+            finishedCycle = true;
+            displayFeedback(false, false, true);
             return;
         }
     }
     
     if(EnableOrderRecording && (force || (currentTimerTime - lastOrderTime >= OrderRefreshSeconds))) {
         MC_Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorForceTerminal);
-        updateOrders();
+        lastOrderSuccess = updateOrders();
         lastOrderTime = currentTimerTime;
     }
     
     if(EnableEquityRecording && (force || (currentTimerTime - lastEquityTime >= EquityRefreshSeconds))) {
         MC_Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorForceTerminal);
-        updateEquity();
+        lastEquitySuccess = updateEquity();
         lastEquityTime = currentTimerTime;
     }
     
     MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
-    
     dWriterMan.resetFatalErrors();
+    finishedCycle = true;
+    if(firstRunComplete) { displayFeedback(); }
 }
 
 bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
@@ -578,7 +627,7 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
     return true;
 }
 
-void MainAccountRecorder::updateOrders() {
+bool MainAccountRecorder::updateOrders() {
     string orderUuid;
     
     int orderCount = OrdersTotal();
@@ -596,9 +645,11 @@ void MainAccountRecorder::updateOrders() {
         
         recordOrder(orderUuid);
     }
+    
+    return true;
 }
 
-void MainAccountRecorder::updateEquity() {
+bool MainAccountRecorder::updateEquity() {
     string equityUuid = MC_Common::GetUuid(); string query = "";
     
     query = StringFormat("INSERT INTO act_equity (uuid, act_uuid, record_datetime, leverage, margin_so_mode, margin_so_call, margin_so_so, balance, equity, credit, margin) VALUES ('%s', '%s', '%s', '%i', '%i', '%f', '%f', '%f', '%f', '%f', '%f');"
@@ -625,6 +676,69 @@ void MainAccountRecorder::updateEquity() {
         
         recordOrderEquity(equityUuid);
     }
+    
+    return true;
+}
+
+void MainAccountRecorder::displayFeedback(bool firstRunFailed = false, bool isWeekend = false, bool schemaFailed = false, bool accountFailed = false) {
+    int orderRefreshMins = MathFloor(OrderRefreshSeconds / 60);
+    int orderRefreshSecs = OrderRefreshSeconds - (orderRefreshMins*60);
+    int equityRefreshMins = MathFloor(EquityRefreshSeconds/60);
+    int equityRefreshSecs = EquityRefreshSeconds - (equityRefreshMins*60);
+    
+    Comment(
+        "AccountRecorder\r\n"
+        , (int)lastOrderTime > 0 ? 
+            "Last Order Cycle: " + TimeToStr(lastOrderTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
+                + (!lastOrderSuccess ? " (Failed!)" : "")
+                + "\r\n"
+            : ""
+        , (int)lastEquityTime > 0 ? 
+            "Last Equity Cycle: " + TimeToStr(lastEquityTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
+                + (!lastEquitySuccess ? " (Failed!)" : "")
+                + "\r\n"
+            : ""
+            
+        , "\r\n"
+        , firstRunComplete && IsConnected() && !isWeekend ? 
+            (EnableOrderRecording ? "Order Cycle:" 
+                + (orderRefreshMins > 0 ? " " + orderRefreshMins + " min" : "")
+                + (orderRefreshSecs > 0 ? " " + orderRefreshSecs + " secs" : "")
+                : "" 
+                )
+            + (EnableEquityRecording && EnableOrderRecording ? ", " : " ")
+            + (EnableEquityRecording ? "Equity Cycle:" 
+                + (equityRefreshMins > 0 ? " " + equityRefreshMins + " min" : "")
+                + (equityRefreshSecs > 0 ? " " + equityRefreshSecs + " secs" : "")
+                : "" 
+                )
+            + "\r\n"
+            : ""
+            
+        , "\r\n"
+        , !firstRunComplete && !firstRunFailed ? "Doing first run...\r\n" : ""
+        , schemaFailed ? "Could not verify schema readiness, trying again next cycle.\r\n" : ""
+        , accountFailed ? "Could not verify master account records, trying again next cycle.\r\n" : "" 
+        , !firstRunComplete && firstRunFailed ? "First run failed, trying again " 
+            + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds." : "") 
+            + "\r\n"
+            : ""
+            
+        , firstRunComplete && !finishedCycle ? "Doing cycle...\r\n" : ""
+        , isWeekend ? "Currently a weekend, sleeping until "
+            + (StartWeekday == 0 ? "Sunday "
+                : StartWeekday == 1 ? "Monday "
+                : StartWeekday == 2 ? "Tuesday "
+                : StartWeekday == 3 ? "Wednesday "
+                : StartWeekday == 4 ? "Thursday "
+                : StartWeekday == 5 ? "Friday "
+                : StartWeekday == 6 ? "Saturday "
+                : ""
+                )
+            + StartWeekdayHour + ":00.\r\n"
+            : ""
+        , !IsConnected() ? "Not connected to broker, trying again next cycle.\r\n" : ""
+        );
 }
 
 MainAccountRecorder *AccountMan;
