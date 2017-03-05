@@ -25,8 +25,7 @@ class DataWriterManager {
     bool queryRetrieveRows(string query, string &result[][], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     
     template<typename T>
-    bool queryRetrieveOneByIndex(int index, string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-
+    bool queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     template<typename T>
     bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
 
@@ -38,6 +37,11 @@ class DataWriterManager {
 //    
 //    bool scriptRetrieveOneByIndex();
 //    bool scriptRetrieveOne();
+
+    template<typename T>
+    bool queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1);
+    //bool queryRunConditional(string ifQuery, string &outParam[], string &thenQuery[], string &elseQuery[], string &ifParam[], string &thenParam[], string &elseParam[], DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1);
+
 
     void resetBlockingErrorByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     void resetBlockingErrors(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
@@ -120,9 +124,10 @@ bool DataWriterManager::queryRetrieveRows(string query, string &result[][], Data
 }
 
 template<typename T>
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
-    if(forDbType > -1 && forDbType != dWriters[index].dbType) { return false; }
-    if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return false; }
+bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+    if(forDbType > -1 && forDbType != dWriters[index].dbType) { skipped = true; return false; }
+    if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { skipped = true; return false; }
+    skipped = false;
     
     return dWriters[index].queryRetrieveOne(query, result, rowIndex);
 }
@@ -131,9 +136,9 @@ template<typename T>
 bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
     int dWritersLength = ArraySize(dWriters);
     
-    bool callResult; T queryResult;
+    bool callResult; T queryResult; bool skipped;
     for(int i = 0; i < dWritersLength; i++) {
-        callResult = queryRetrieveOneByIndex(i, query, queryResult, rowIndex, forDbType, ignoreDbType);
+        callResult = queryRetrieveOneByIndex(i, query, queryResult, skipped, rowIndex, forDbType, ignoreDbType);
         if(callResult) { 
             result = queryResult; 
             return true; 
@@ -176,6 +181,42 @@ bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-
 
     return finalResult;
 }
+
+template<typename T>
+bool DataWriterManager::queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1) {
+    bool returnResult = true;
+
+    T callValue = "";
+
+    if(queryRetrieveOne(ifQuery, callValue, 0, forDbType, ignoreDbType)) {
+        outParam = callValue;
+        
+        if(thenQuery != NULL || typename(thenQuery) == "string" ? StringLen(thenQuery) > 0 : false) {
+            if(thenParam != NULL || typename(thenParam) == "string" ? StringLen(thenParam) > 0 : false) { 
+                outParam = thenParam;
+                thenQuery = StringFormat(thenQuery, thenParam); 
+            }
+            
+            if(!queryRun(thenQuery, forDbType, ignoreDbType)) { returnResult = false; }
+        }
+    } else {
+        outParam = callValue;
+        
+        if(elseQuery != NULL || typename(elseQuery) == "string" ? StringLen(elseQuery) > 0 : false) {
+            if(elseParam != NULL || typename(elseParam) == "string" ? StringLen(elseParam) > 0 : false) { 
+                outParam = elseParam;
+                elseQuery = StringFormat(elseQuery, elseParam); 
+            }
+            if(!queryRun(elseQuery, forDbType, ignoreDbType)) { returnResult = false; }
+        }
+    }
+    
+    return returnResult;
+}
+
+//bool DataWriterManager::queryRunConditional(string ifQuery, string &outParam[], string &thenQuery[], string &elseQuery[], string &ifParam[], string &thenParam[], string &elseParam[], DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1) {
+//    return false;
+//}
 
 void DataWriterManager::resetBlockingErrorByIndex(int index,DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
     if(forDbType > -1 && forDbType != dWriters[index].dbType) { return; }

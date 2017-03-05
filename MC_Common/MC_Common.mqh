@@ -17,13 +17,12 @@ enum StringType {
 };
 
 class MC_Common {
-    private:
+    public:
     static string StringZeroArray[1];
     static bool BoolZeroArray[1];
     static int IntZeroArray[1];
     static double DoubleZeroArray[1];
     
-    public:
     //array
     template<typename T>
     static int ArrayPush(T &array[], T unit);

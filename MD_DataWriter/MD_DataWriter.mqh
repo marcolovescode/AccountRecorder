@@ -53,7 +53,7 @@ class DataWriter {
     int queryRetrieveRows(string query, string &result[][]);
     template<typename T>
     bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/);
-
+    
     bool getCsvHandle(int &outFileHandle);
 
     private:
