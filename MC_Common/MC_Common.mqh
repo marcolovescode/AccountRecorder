@@ -52,6 +52,8 @@ class MC_Common {
     
     static bool EventSetTimerReliable(int seconds);
     static bool EventSetMillisecondTimerReliable(int milliseconds);
+    
+    static string GetRandomFileName(string prefix = "Log_", string ext = ".txt");
 };
 
 template<typename T>
@@ -292,4 +294,8 @@ bool MC_Common::EventSetMillisecondTimerReliable(int milliseconds) {
     }
     
     return false;
+}
+
+string MC_Common::GetRandomFileName(string prefix = "Log_", string ext = ".txt") {
+    return prefix + (int)TimeLocal() + "_" + (int)GetMicrosecondCount() + ext;
 }
