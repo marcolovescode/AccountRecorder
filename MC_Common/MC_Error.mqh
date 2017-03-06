@@ -30,6 +30,7 @@ class MC_Error {
     public:
     static string FilePath;
     static bool LogAllErrorsToFile;
+    static bool LogAllErrorsToTerminal;
     static bool PrintAllFatalErrors;
     static int FatalCounter;
     static int DebugLevel;
@@ -49,6 +50,7 @@ bool MC_Error::PrintAllFatalErrors = false; // because ExpertRemove() does not e
 int MC_Error::FatalCounter = 0;
 int MC_Error::DebugLevel = 2; // user configurable
 bool MC_Error::LogAllErrorsToFile = false; // user configurable
+bool MC_Error::LogAllErrorsToTerminal = true; // user configurable
 
 bool MC_Error::PrintErrorToFile(string message = "") {
     // todo: how to close upon program exit?
@@ -82,7 +84,7 @@ void MC_Error::PrintError(int level, string message = "", string funcTrace = "",
         );
     
     if(DebugLevel >= level || fatal) { 
-        if(!LogAllErrorsToFile || location == ErrorForceTerminal) { Print(errorMsg); }
+        if(LogAllErrorsToTerminal || !LogAllErrorsToFile || location == ErrorForceTerminal) { Print(errorMsg); }
         if(location == ErrorForceFile || LogAllErrorsToFile) { if(!MC_Error::PrintErrorToFile(errorMsg)) { Print(errorMsg); } }
     } 
 }
