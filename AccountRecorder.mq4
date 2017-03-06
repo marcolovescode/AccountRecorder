@@ -33,6 +33,7 @@ bool FirstTimerRun = true;
 int OnInit() {
     MC_Error::DebugLevel = DebugLevel;
     MC_Error::LogAllErrorsToFile = LogAllErrorsToFile;
+    MC_Error::LogAllErrorsToTerminal = LogAllErrorsToTerminal;
     MC_Error::FilePath = ErrorLogFileName;
     
     MAR_LoadScripts();

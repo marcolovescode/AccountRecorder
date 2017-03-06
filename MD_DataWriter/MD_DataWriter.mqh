@@ -165,7 +165,7 @@ bool DataWriter::reconnect(bool attempt = true) {
     }
 
     blockingError = true;
-    MC_Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + dbType + " after " + connectRetries + " attempts", FunctionTrace);
+    MC_Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + EnumToString(dbType) + " after " + connectRetries + " attempts", FunctionTrace);
 
     return false;
 }
@@ -287,7 +287,7 @@ bool DataWriter::queryRun(string dataInput) {
         switch(dbType) {
             case DW_Sqlite: // param = file path
                 result = sqlite.Exec(dataInput); // extra "" fixes mt4 build 640 dll param corruption
-                if (result != SQLITE_OK) { 
+                if (result != SQLITE_OK && result != SQLITE_ROW && result != SQLITE_DONE) { 
                     working = handleErrorRetry(result, ErrorNormal, "Sqlite expression failed: " + result + " - " + sqlite.ErrorMsg(), FunctionTrace, dataInput); 
                     continue;
                 }
@@ -521,7 +521,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
 
 bool DataWriter::checkSafe() {
     if(blockingError) {
-        MC_Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
+        //MC_Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
         return false;
     }
     

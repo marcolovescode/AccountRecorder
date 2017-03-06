@@ -39,7 +39,9 @@ class DataWriterManager {
 //    bool scriptRetrieveOne();
 
     template<typename T>
-    bool queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1);
+    bool queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1, bool doAll = false);
+    template<typename T>
+    bool queryRunConditional(string ifQuery, T &outParam, bool &outResult, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1, bool doAll = false);
     //bool queryRunConditional(string ifQuery, string &outParam[], string &thenQuery[], string &elseQuery[], string &ifParam[], string &thenParam[], string &elseParam[], DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1);
 
 
@@ -91,13 +93,19 @@ bool DataWriterManager::queryRunByIndex(int index, string dataInput, DataWriterT
 
 bool DataWriterManager::queryRun(string dataInput, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false) {
     int dWritersLength = ArraySize(dWriters);
+    int failures = 0;
     
-    bool finalResult = false;
+    bool finalResult = doAll;
     for(int i = 0; i < dWritersLength; i++) {
         bool result = queryRunByIndex(i, dataInput, forDbType, ignoreDbType);
-        if(result) { finalResult = true; }
+        if(doAll && !result) {
+            //MC_Error::ThrowError(ErrorNormal, "Query run failed for " + EnumToString(dWriters[i].dbType), FunctionTrace);
+            failures++;
+        }
         if(!doAll && result) { return true; }
     }
+    
+    if(failures == dWritersLength) { finalResult = false; }
 
     return finalResult;
 }
@@ -183,33 +191,82 @@ bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-
 }
 
 template<typename T>
-bool DataWriterManager::queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1) {
+bool DataWriterManager::queryRunConditional(string ifQuery, T &outParam, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1, bool doAll = false) {
+    bool outResult = false;
+    
+    return queryRunConditional(ifQuery, outParam, outResult, thenQuery, elseQuery, ifParam, thenParam, elseParam, forDbType, ignoreDbType, doAll);
+}
+
+template<typename T>
+bool DataWriterManager::queryRunConditional(string ifQuery, T &outValue, bool &outResult, string thenQuery = NULL, string elseQuery = NULL, T ifParam = NULL, T thenParam = NULL, T elseParam = NULL, DataWriterType forDbType=-1, DataWriterType ignoreDbType=-1, bool doAll = false) {
     bool returnResult = true;
-
-    T callValue = "";
-
-    if(queryRetrieveOne(ifQuery, callValue, 0, forDbType, ignoreDbType)) {
-        outParam = callValue;
+    //outValue = NULL; // TODO: this probably breaks things, comment out for now
+    outResult = false;
+    
+    int failures = 0;
+    int dWriterCount = ArraySize(dWriters);
+    bool halt = false; bool masterFilled = false;
+    bool callResult[]; T callValue[]; bool callSkipped[];
+    for(int i = 0; i < dWriterCount; i++) {
+        T curCallValue = NULL; bool curCallSkipped = false;
+        bool curCallResult = queryRetrieveOneByIndex(i, ifQuery, curCallValue, curCallSkipped, 0, forDbType, ignoreDbType);
         
-        if(thenQuery != NULL || typename(thenQuery) == "string" ? StringLen(thenQuery) > 0 : false) {
-            if(thenParam != NULL || typename(thenParam) == "string" ? StringLen(thenParam) > 0 : false) { 
-                outParam = thenParam;
-                thenQuery = StringFormat(thenQuery, thenParam); 
-            }
-            
-            if(!queryRun(thenQuery, forDbType, ignoreDbType)) { returnResult = false; }
-        }
-    } else {
-        outParam = callValue;
+        MC_Common::ArrayPush(callSkipped, curCallSkipped);
+        MC_Common::ArrayPush(callResult, curCallResult);
+        MC_Common::ArrayPush(callValue, curCallValue);
         
-        if(elseQuery != NULL || typename(elseQuery) == "string" ? StringLen(elseQuery) > 0 : false) {
-            if(elseParam != NULL || typename(elseParam) == "string" ? StringLen(elseParam) > 0 : false) { 
-                outParam = elseParam;
-                elseQuery = StringFormat(elseQuery, elseParam); 
-            }
-            if(!queryRun(elseQuery, forDbType, ignoreDbType)) { returnResult = false; }
+        if(curCallResult && !masterFilled) {
+            outResult = curCallResult;
+            outValue = curCallValue;
+            masterFilled = true;
         }
     }
+    
+    if(outResult && (outValue == NULL || typename(outValue) == "string" ? StringLen(outValue) <= 0 : false)) { 
+        Print("BREAK"); 
+    }
+    
+    if(outResult) {
+        if(thenQuery != NULL || typename(thenQuery) == "string" ? StringLen(thenQuery) > 0 : false) {
+            if(thenParam != NULL || typename(thenParam) == "string" ? StringLen(thenParam) > 0 : false) { 
+                outValue = thenParam;
+            }
+        }
+    } else {
+        if(elseQuery != NULL || typename(elseQuery) == "string" ? StringLen(elseQuery) > 0 : false) {
+            if(elseParam != NULL || typename(elseParam) == "string" ? StringLen(elseParam) > 0 : false) { 
+                outValue = elseParam;
+            }
+        }
+    }
+    
+    thenQuery = StringFormat(thenQuery, outValue); 
+    elseQuery = StringFormat(elseQuery, outValue); 
+    
+    halt = false;
+    for(int i = 0; !halt && (i < ArraySize(callResult)); i++) {
+        bool curCallResult = false;
+        
+        if(callResult[i] && !callSkipped[i]) {
+            curCallResult = queryRunByIndex(i, thenQuery, forDbType, ignoreDbType);
+        } else if(!callResult[i] && !callSkipped[i]) {
+            curCallResult = queryRunByIndex(i, elseQuery, forDbType, ignoreDbType);
+        }
+        
+        if(doAll) {
+            if(!curCallResult && returnResult) { 
+                //MC_Error::ThrowError(ErrorNormal, "Query failed on DB " + EnumToString(dWriters[i].dbType), FunctionTrace);
+                failures++;
+            }
+        } else {
+            if(!doAll && curCallResult) {
+                returnResult = true;
+                break;
+            }
+        }
+    }
+    
+    if(failures == dWriterCount) { returnResult = false; }
     
     return returnResult;
 }

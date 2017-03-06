@@ -180,6 +180,7 @@ bool MainAccountRecorder::checkSchema() {
             
             if(!schemaReady) {
                 MC_Error::ThrowError(ErrorNormal, "PgSQL Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+                return false;
             }
         }
     }
@@ -198,11 +199,12 @@ bool MainAccountRecorder::checkSchema() {
             
             if(!schemaReady) {
                 MC_Error::ThrowError(ErrorNormal, "SQLite Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+                return false;
             }
         }
     }
     
-    return schemaReady;
+    return true;
 }
 
 bool MainAccountRecorder::setupAccountRecords() {
@@ -234,6 +236,9 @@ bool MainAccountRecorder::setupAccountRecords() {
         , ""
         , ""
         , MC_Common::GetUuid()
+        , -1
+        , -1
+        , true
         )
     ) {
         MC_Error::ThrowError(ErrorNormal, "Could not create identifying currency record", FunctionTrace);
@@ -255,6 +260,9 @@ bool MainAccountRecorder::setupAccountRecords() {
         , ""
         , ""
         , MC_Common::GetUuid()
+        , -1
+        , -1
+        , true
         )
     ) {
         MC_Error::ThrowError(ErrorNormal, "Could not create identifying account record", FunctionTrace);
@@ -292,6 +300,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     
     finishedCycle = false;
     displayFeedback();
+    MC_Error::PrintInfo(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, ErrorForceTerminal);
     
     if(!checkSchema()) {
         if(!setupSchema()) {
@@ -368,6 +377,9 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
         , ""
         , ""
         , MC_Common::GetUuid()
+        , -1
+        , -1
+        , UseAllWriters
         )
     ) {
         MC_Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace, orderNum);
@@ -394,6 +406,9 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
             , ""
             , ""
             , orderUuid // MC_Common::GetUuid()
+            , -1
+            , -1
+            , UseAllWriters
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create order-specific record", FunctionTrace, orderNum);
@@ -420,6 +435,9 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
             , ""
             , ""
             , MC_Common::GetUuid()
+            , -1
+            , -1
+            , UseAllWriters
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create balance split", FunctionTrace, orderNum);
@@ -456,6 +474,9 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
             , ""
             , ""
             , orderUuid // MC_Common::GetUuid()
+            , -1
+            , -1
+            , UseAllWriters
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create order-specific exit record", FunctionTrace, OrderTicket());
@@ -472,15 +493,13 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
         return false;
     }
     
-    bool finalResult = true; string query = ""; string splitUuid = "";
+    bool returnResult = true; string query = ""; string splitUuid = ""; bool callResult = false; 
     
-    // record splits
-    // todo: these need to be updated periodically. e.g. swap is 0 one day and 3.00 the next
-    // todo: HOW TO KNOW WHETHER TO IGNORE A SPLIT OR UPDATE IT???
     if(OrderCommission() != 0) {
         if(dWriterMan.queryRunConditional(
             StringFormat("select uuid from splits where txn_uuid='%s' and type='%i' and subtype='%i';", orderUuid, 2, 1)
             , splitUuid
+            , callResult
             , ""
             , StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%%s', '%s', '%s', '%i', '%i', '%i', '%f');"
                 , orderUuid
@@ -493,24 +512,30 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
             , ""
             , ""
             , MC_Common::GetUuid()
+            , -1 
+            , -1
+            , UseAllWriters
             )
         ) {
-            if(!dWriterMan.queryRunConditional(
+            if(callResult && !dWriterMan.queryRunConditional(
                 StringFormat("select uuid from splits where uuid='%s' and amount='%f';", splitUuid, OrderCommission())
                 , splitUuid
+                , callResult
                 , ""
                 , StringFormat("UPDATE splits SET amount='%f' WHERE uuid='%s'"
                     , OrderCommission()
                     , splitUuid
                     )
+                , "", "", "", -1, -1
+                , UseAllWriters
                 )
             ) {
                 MC_Error::ThrowError(ErrorNormal, "Could not update order commission split", FunctionTrace, OrderTicket());
-                finalResult = false;
+                returnResult = false;
             }
         } else {
             MC_Error::ThrowError(ErrorNormal, "Could not create order commission split", FunctionTrace, OrderTicket());
-            finalResult = false;
+            returnResult = false;
         }
     }
         
@@ -518,6 +543,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
         if(dWriterMan.queryRunConditional(
             StringFormat("select uuid from splits where txn_uuid='%s' and type='%i' and subtype='%i';", orderUuid, 2, 2)
             , splitUuid
+            , callResult
             , ""
             , StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%%s', '%s', '%s', '%i', '%i', '%i', '%f');"
                 , orderUuid
@@ -530,30 +556,37 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
             , ""
             , ""
             , MC_Common::GetUuid()
+            , -1
+            , -1
+            , UseAllWriters
             )
         ) {
-            if(!dWriterMan.queryRunConditional(
+            if(callResult && !dWriterMan.queryRunConditional(
                 StringFormat("select uuid from splits where uuid='%s' and amount='%f';", splitUuid, OrderSwap())
                 , splitUuid
+                , callResult
                 , ""
                 , StringFormat("UPDATE splits SET amount='%f' WHERE uuid='%s'"
                     , OrderSwap()
                     , splitUuid
                     )
+                , "", "", "", -1, -1
+                , UseAllWriters    
                 )
             ) {
                 MC_Error::ThrowError(ErrorNormal, "Could not update order swap split", FunctionTrace, OrderTicket());
-                finalResult = false;
+                returnResult = false;
             }
         } else {
             MC_Error::ThrowError(ErrorNormal, "Could not create order swap split", FunctionTrace, OrderTicket());
-            finalResult = false;
+            returnResult = false;
         }
     }
     
     if(dWriterMan.queryRunConditional(
         StringFormat("select uuid from splits where txn_uuid='%s' and type='%i' and subtype='%i';", orderUuid, 1, -1)
         , splitUuid
+        , callResult
         , ""
         , StringFormat("INSERT INTO splits (uuid, txn_uuid, cny_uuid, phase, type, subtype, amount) VALUES ('%%s', '%s', '%s', '%i', '%i', '%i', '%f');"
             , orderUuid
@@ -566,27 +599,33 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
         , ""
         , ""
         , MC_Common::GetUuid()
+        , -1
+        , -1
+        , UseAllWriters
         )
     ) {
-        if(!dWriterMan.queryRunConditional(
+        if(callResult && !dWriterMan.queryRunConditional(
             StringFormat("select uuid from splits where uuid='%s' and amount='%f';", splitUuid, OrderProfit())
             , splitUuid
+            , callResult
             , ""
             , StringFormat("UPDATE splits SET amount='%f' WHERE uuid='%s'"
                 , OrderProfit()
                 , splitUuid
                 )
+            , "", "", "", -1, -1
+            , UseAllWriters
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not update order withdrawal split", FunctionTrace, OrderTicket());
-            finalResult = false;
+            returnResult = false;
         }
     } else {
         MC_Error::ThrowError(ErrorNormal, "Could not create order withdrawal split", FunctionTrace, OrderTicket());
-        finalResult = false;
+        returnResult = false;
     }
     
-    return finalResult;
+    return returnResult;
 }
 
 bool MainAccountRecorder::recordOrderElection(string orderUuid) {
@@ -612,6 +651,9 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
             , ""
             , ""
             , MC_Common::GetUuid()
+            , -1
+            , -1
+            , UseAllWriters
             )
         ) {
             MC_Error::ThrowError(ErrorNormal, "Could not create order election entry", FunctionTrace, OrderTicket());
@@ -638,7 +680,7 @@ bool MainAccountRecorder::updateEquity() {
         , AccountInfoDouble(ACCOUNT_CREDIT)
         , AccountInfoDouble(ACCOUNT_MARGIN)
         );
-    if(!dWriterMan.queryRun(query)) {
+    if(!dWriterMan.queryRun(query, -1, -1, UseAllWriters)) {
         MC_Error::ThrowError(ErrorNormal, "Could not record account equity", FunctionTrace, equityUuid);
     }
     
@@ -685,7 +727,7 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
         , OrderProfit()
 //        , OrderComment()
         );
-    if(!dWriterMan.queryRun(query)) {
+    if(!dWriterMan.queryRun(query, -1, -1, UseAllWriters)) {
         MC_Error::ThrowError(ErrorNormal, "Could not create order equity entry", FunctionTrace, orderNum);
     }
     

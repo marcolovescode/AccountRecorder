@@ -8,6 +8,7 @@
 #property strict
 //+------------------------------------------------------------------+
 input int DebugLevel = 2; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
+input bool LogAllErrorsToTerminal = true; // LogAllErrorsToTerminal
 input bool LogAllErrorsToFile = false; // LogAllErrorsToFile
 input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
 input string TimingOptions = "-------------------- Timing --------------------";
@@ -30,7 +31,8 @@ input int ElectionId = 1;
 input string DatabaseOptions = "---------------- Database Targets --------------";
 input bool EnableOrderRecording = true;
 input bool EnableEquityRecording = true;
-input bool UseAllWriters = false; // UseAllWriters true, or only use first successful writer
+//input bool UseAllWriters = false; // UseAllWriters true, or only use first successful writer
+bool UseAllWriters = true; // The way fallback mode works, if the primary DB fails, then the sub DB's record the complete recordset, making UseAllWriters redundant.
 input int ConnectRetries = 5;
 input int ConnectRetryDelaySecs = 1;
 
