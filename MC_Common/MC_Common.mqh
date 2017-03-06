@@ -16,13 +16,13 @@ enum StringType {
     Type_Symbol
 };
 
+string StringZeroArray[1];
+bool BoolZeroArray[1];
+int IntZeroArray[1];
+double DoubleZeroArray[1];
+
 class Common {
     public:
-    static string StringZeroArray[1];
-    static bool BoolZeroArray[1];
-    static int IntZeroArray[1];
-    static double DoubleZeroArray[1];
-    
     //array
     template<typename T>
     static int ArrayPush(T &array[], T unit);
@@ -58,11 +58,21 @@ class Common {
 
 template<typename T>
 int Common::ArrayPush(T &array[], T unit) {
-    int size;
+    int size = ArraySize(array);
+    int target = size; //int target = (isSeries ? 0 : size);
+    bool isSeries = ArrayIsSeries(array);
     
-    size = ArraySize(array);
+    if(isSeries) { ArraySetAsSeries(array, false); }
+        // When ArraySetAsSeries, ArrayResize does not shift elements rightward
+        // as theory ought to be (new blank elements at index 0). Simplest workaround
+        // is to temporarily set to non-series, resize and add, then set back to series.
+        // Theory: https://www.forexfactory.com/showthread.php?p=2878455#post2878455
+        // Workaround: https://www.forexfactory.com/showthread.php?p=4686709#post4686709
+    
     ArrayResize(array, size+1);
-    array[size] = unit;
+    array[target] = unit;
+    
+    if(isSeries) { ArraySetAsSeries(array, true); }
     
     return size + 1;
 }
