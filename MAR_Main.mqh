@@ -324,6 +324,10 @@ void MainAccountRecorder::doCycle(bool force = false) {
         lastEquityTime = currentTimerTime;
     }
     
+    if(EnableSqlite && SlForceFreeMem) {
+        dWriterMan.queryRun("PRAGMA shrink_memory", DW_Sqlite, -1, true);
+    }
+    
     MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
     dWriterMan.resetBlockingErrors();
     finishedCycle = true;

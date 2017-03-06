@@ -59,6 +59,8 @@ long sqlite3_column_int64(sqlite3_stmt_p32 apstmt,int acol);
 double sqlite3_column_double(sqlite3_stmt_p32 apstmt,int acol);
 const PTR32 sqlite3_column_text(sqlite3_stmt_p32 apstmt,int acol);
 const PTR32 sqlite3_column_blob(sqlite3_stmt_p32 apstmt,int acol);
+
+int sqlite3_db_release_memory(sqlite3_p32 db);
 #import
 
 int sqlite3_open(const uchar &filename[],sqlite3_p64 &ppDb) { sqlite3_p32 pdb=NULL; int r=sqlite3_32::sqlite3_open(filename,pdb); ppDb=pdb; return(r); }
@@ -90,6 +92,8 @@ long sqlite3_column_int64(sqlite3_stmt_p64 apstmt,int acol) { return(sqlite3_32:
 double sqlite3_column_double(sqlite3_stmt_p64 apstmt,int acol) { return(sqlite3_32::sqlite3_column_double((sqlite3_stmt_p32)apstmt,acol)); }
 const PTR64 sqlite3_column_text(sqlite3_stmt_p64 apstmt, int acol) { return(sqlite3_32::sqlite3_column_text((sqlite3_stmt_p32)apstmt, acol)); }
 const PTR64 sqlite3_column_blob(sqlite3_stmt_p64 apstmt, int acol) { return(sqlite3_32::sqlite3_column_blob((sqlite3_stmt_p32)apstmt, acol)); }
+
+int sqlite3_db_release_memory(PTR64 pDb) { return sqlite3_32::sqlite3_db_release_memory((PTR32)pDb); }
 
 /* file open flags */
 #define SQLITE_OPEN_READONLY         1  /* Ok for sqlite3_open_v2() */

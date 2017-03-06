@@ -58,6 +58,7 @@ input bool EnablePostgres = true;
 input string PgConnectOrderString = "hostaddr=127.0.0.1 port=9122 dbname=forextest user=mt4 password=U?G~.e?Mc25xZgsJ7b$/`P|it9h4CwwW connect_timeout=5";
 
 input bool EnableSqlite = false;
+input bool SlForceFreeMem = false; // Force memory freeing: Enable if MT4 uses excessive RAM and does not free it under pressure.
 input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
 
 //input bool EnableSqlText = false;
