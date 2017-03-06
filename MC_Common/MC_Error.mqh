@@ -23,7 +23,7 @@ enum ErrorPrintLocation {
     ErrorForceTerminal
 };
 
-class MC_Error {
+class Error {
     private:
     static int FileHandle;
     
@@ -44,15 +44,15 @@ class MC_Error {
 
 //#include "MMT_Settings.mqh"
 
-int MC_Error::FileHandle = -1;
-string MC_Error::FilePath = "";
-bool MC_Error::PrintAllFatalErrors = false; // because ExpertRemove() does not exit an EA right away, further error messages will print when only the first one is useful.
-int MC_Error::FatalCounter = 0;
-int MC_Error::DebugLevel = 2; // user configurable
-bool MC_Error::LogAllErrorsToFile = false; // user configurable
-bool MC_Error::LogAllErrorsToTerminal = true; // user configurable
+int Error::FileHandle = -1;
+string Error::FilePath = "";
+bool Error::PrintAllFatalErrors = false; // because ExpertRemove() does not exit an EA right away, further error messages will print when only the first one is useful.
+int Error::FatalCounter = 0;
+int Error::DebugLevel = 2; // user configurable
+bool Error::LogAllErrorsToFile = false; // user configurable
+bool Error::LogAllErrorsToTerminal = true; // user configurable
 
-bool MC_Error::PrintErrorToFile(string message = "") {
+bool Error::PrintErrorToFile(string message = "") {
     // todo: how to close upon program exit?
     
     if((FileHandle == INVALID_HANDLE) || FileHandle == -1) {
@@ -71,7 +71,7 @@ bool MC_Error::PrintErrorToFile(string message = "") {
     } else { return false; }
 }
 
-void MC_Error::PrintError(int level, string message = "", string funcTrace = "", bool fatal = false, bool info=false, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void Error::PrintError(int level, string message = "", string funcTrace = "", bool fatal = false, bool info=false, string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     // todo: alerts
     if(fatal && FatalCounter > 0 && !PrintAllFatalErrors) { return; } // if fatal, only print an error message once. 
     
@@ -85,19 +85,19 @@ void MC_Error::PrintError(int level, string message = "", string funcTrace = "",
     
     if(DebugLevel >= level || fatal) { 
         if(LogAllErrorsToTerminal || !LogAllErrorsToFile || location == ErrorForceTerminal) { Print(errorMsg); }
-        if(location == ErrorForceFile || LogAllErrorsToFile) { if(!MC_Error::PrintErrorToFile(errorMsg)) { Print(errorMsg); } }
+        if(location == ErrorForceFile || LogAllErrorsToFile) { if(!Error::PrintErrorToFile(errorMsg)) { Print(errorMsg); } }
     } 
 }
 
-void MC_Error::ThrowError(int level, string message = "", string funcTrace = "", string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault) {
+void Error::ThrowError(int level, string message = "", string funcTrace = "", string params = "", bool fatal = false, ErrorPrintLocation location = ErrorDoDefault) {
     PrintError(level, message, funcTrace, fatal, false, params, location);
     if(fatal) { FatalCounter++; ExpertRemove(); } // this calls OnDeinit then exits. this won't exit right away; event handler will finish processing.
 }
 
-void MC_Error::ThrowFatalError(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void Error::ThrowFatalError(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     ThrowError(level, message, funcTrace, params, true, location);
 }
 
-void MC_Error::PrintInfo(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
+void Error::PrintInfo(int level, string message = "", string funcTrace = "", string params = "", ErrorPrintLocation location = ErrorDoDefault) {
     PrintError(level, message, funcTrace, false, true, params, location);
 }

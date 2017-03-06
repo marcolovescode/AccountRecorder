@@ -16,7 +16,7 @@ enum StringType {
     Type_Symbol
 };
 
-class MC_Common {
+class Common {
     public:
     static string StringZeroArray[1];
     static bool BoolZeroArray[1];
@@ -57,7 +57,7 @@ class MC_Common {
 };
 
 template<typename T>
-int MC_Common::ArrayPush(T &array[], T unit) {
+int Common::ArrayPush(T &array[], T unit) {
     int size;
     
     size = ArraySize(array);
@@ -68,7 +68,7 @@ int MC_Common::ArrayPush(T &array[], T unit) {
 }
 
 template<typename T>
-int MC_Common::ArrayReserve(T &array[], int reserveSize) {
+int Common::ArrayReserve(T &array[], int reserveSize) {
     int size;
     
     size = ArraySize(array);
@@ -77,7 +77,7 @@ int MC_Common::ArrayReserve(T &array[], int reserveSize) {
     return size + reserveSize;
 }
 
-int MC_Common::ArrayTsearch(string &array[], string value, int count=-1, int start=0, int direction=MODE_ASCEND, bool caseSensitive=true) {
+int Common::ArrayTsearch(string &array[], string value, int count=-1, int start=0, int direction=MODE_ASCEND, bool caseSensitive=true) {
     if(count < 0) { count = ArraySize(array); }
     
     for(int i = start; i < count; i++) {
@@ -87,11 +87,11 @@ int MC_Common::ArrayTsearch(string &array[], string value, int count=-1, int sta
     return -1;
 }
 
-string MC_Common::StringTrim(string inputStr) {
+string Common::StringTrim(string inputStr) {
     return StringTrimLeft(StringTrimRight(inputStr));
 }
 
-bool MC_Common::StrToBool(string inputStr) {
+bool Common::StrToBool(string inputStr) {
     StringToLower(inputStr);
     string testStr = StringTrim(inputStr);
     
@@ -100,11 +100,11 @@ bool MC_Common::StrToBool(string inputStr) {
     else return (bool)StrToInteger(testStr);
 }
 
-bool MC_Common::IsAddrAbcValid (string addrAbc) {
+bool Common::IsAddrAbcValid (string addrAbc) {
     return AddrAbcToInt(addrAbc) >= 0; // todo: this overflows eventually with zzzzzzz etc, how to check?
 }
 
-int MC_Common::AddrAbcToInt(string addrAbc, bool zeroBased=true) {
+int Common::AddrAbcToInt(string addrAbc, bool zeroBased=true) {
     // http://stackoverflow.com/questions/9905533/convert-excel-column-alphabet-e-g-aa-to-number-e-g-25
     
     StringToLower(addrAbc);
@@ -122,7 +122,7 @@ int MC_Common::AddrAbcToInt(string addrAbc, bool zeroBased=true) {
     return sum - (int)zeroBased; //make 0-based, not 1-based
 }
 
-string MC_Common::AddrIntToAbc(int addrInt, bool zeroBased=true) {
+string Common::AddrIntToAbc(int addrInt, bool zeroBased=true) {
     // http://stackoverflow.com/questions/181596/how-to-convert-a-column-number-eg-127-into-an-excel-column-eg-aa
 
     int dividend = addrInt + (int)zeroBased; // make 0 based, not 1 based
@@ -139,7 +139,7 @@ string MC_Common::AddrIntToAbc(int addrInt, bool zeroBased=true) {
     return columnName;
 }
 
-string MC_Common::ConcatStringFromArray(string& strArray[], string delimiter = ";") {
+string Common::ConcatStringFromArray(string& strArray[], string delimiter = ";") {
     int strCount = ArraySize(strArray);
     
     string finalString = "";
@@ -150,7 +150,7 @@ string MC_Common::ConcatStringFromArray(string& strArray[], string delimiter = "
     return finalString;
 }
 
-StringType MC_Common::GetStringType(string test) {
+StringType Common::GetStringType(string test) {
     int len = StringLen(test);
     bool uppercase = false; bool lowercase = false; bool numeric = false;
     ushort code;
@@ -169,7 +169,7 @@ StringType MC_Common::GetStringType(string test) {
 }
 
 // http://cs.stackexchange.com/questions/1447/what-is-most-efficient-for-gcd
-int MC_Common::GetGcd(int a, int b)
+int Common::GetGcd(int a, int b)
 {
     while(b) b ^= a ^= b ^= a %= b;
     return a;
@@ -191,7 +191,7 @@ int MC_Common::GetGcd(int a, int b)
 //|where x is any hexadecimal digit and y is one of 8, 9, A, or B    |
 //|(e.g., f47ac10b-58cc-4372-a567-0e02b2c3d479).                                                               |
 //+------------------------------------------------------------------+
-string MC_Common::GetUuid()
+string Common::GetUuid()
   {
    string alphabet_x="0123456789abcdef";
    string alphabet_y="89ab";
@@ -223,7 +223,7 @@ string MC_Common::GetUuid()
   }
 //+------------------------------------------------------------------+
 
-bool MC_Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour) {
+bool Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour) {
     int fixedEndDayOfWeek = endDayOfWeek;
     int currentDayOfWeek = TimeDayOfWeek(subject);
     int currentHour = TimeHour(subject);
@@ -235,7 +235,7 @@ bool MC_Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int star
         ;
 }
 
-string MC_Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/) {
+string Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/) {
     // todo: microseconds?
     
     string result = TimeToStr(source, TIME_DATE|TIME_MINUTES|TIME_SECONDS);
@@ -268,7 +268,7 @@ string MC_Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, s
     return result;
 }
 
-bool MC_Common::EventSetTimerReliable(int seconds) {
+bool Common::EventSetTimerReliable(int seconds) {
     int delayMilliseconds = 255;
     int delayRetries = 5;
     
@@ -282,7 +282,7 @@ bool MC_Common::EventSetTimerReliable(int seconds) {
     return false;
 }
 
-bool MC_Common::EventSetMillisecondTimerReliable(int milliseconds) {
+bool Common::EventSetMillisecondTimerReliable(int milliseconds) {
     int delayMilliseconds = 255;
     int delayRetries = 5;
     
@@ -296,6 +296,6 @@ bool MC_Common::EventSetMillisecondTimerReliable(int milliseconds) {
     return false;
 }
 
-string MC_Common::GetRandomFileName(string prefix = "Log_", string ext = ".txt") {
+string Common::GetRandomFileName(string prefix = "Log_", string ext = ".txt") {
     return prefix + (int)TimeLocal() + "_" + (int)GetMicrosecondCount() + ext;
 }

@@ -53,11 +53,11 @@ void ResourceStore::~ResourceStore() {
 }
 
 bool ResourceStore::loadTextResource(string fileName) {
-    int loc = MC_Common::ArrayTsearch(fileNames, fileName);
+    int loc = Common::ArrayTsearch(fileNames, fileName);
     
     if(loc < 0) {
-        loc = -1 + MC_Common::ArrayPush(fileNames, fileName);
-        MC_Common::ArrayPush(files, new ResourceFile(fileName, ResText));
+        loc = -1 + Common::ArrayPush(fileNames, fileName);
+        Common::ArrayPush(files, new ResourceFile(fileName, ResText));
     }
     
     ArrayFree(files[loc].data);
@@ -65,7 +65,7 @@ bool ResourceStore::loadTextResource(string fileName) {
     int fileHandle = FileOpen(fileName, FILE_READ|FILE_TXT);
     if(fileHandle != INVALID_HANDLE) {
         while(!FileIsEnding(fileHandle)) {
-            MC_Common::ArrayPush(files[loc].data, FileReadString(fileHandle));
+            Common::ArrayPush(files[loc].data, FileReadString(fileHandle));
         }
         
         FileClose(fileHandle);
@@ -75,11 +75,11 @@ bool ResourceStore::loadTextResource(string fileName) {
 }
 
 bool ResourceStore::loadTextResource(string fileName, const string &dataIn[]) {
-    int loc = MC_Common::ArrayTsearch(fileNames, fileName);
+    int loc = Common::ArrayTsearch(fileNames, fileName);
     
     if(loc < 0) {
-        loc = -1 + MC_Common::ArrayPush(fileNames, fileName);
-        MC_Common::ArrayPush(files, new ResourceFile(fileName, ResText));
+        loc = -1 + Common::ArrayPush(fileNames, fileName);
+        Common::ArrayPush(files, new ResourceFile(fileName, ResText));
     }
 
     ArrayFree(files[loc].data);
@@ -88,11 +88,11 @@ bool ResourceStore::loadTextResource(string fileName, const string &dataIn[]) {
 }
 
 bool ResourceStore::getTextResource(string fileName, string &dataOut[]) {
-    int loc = MC_Common::ArrayTsearch(fileNames, fileName);
+    int loc = Common::ArrayTsearch(fileNames, fileName);
     
     if(loc < 0) {
         if(!loadTextResource(fileName)) { return false; }
-        else { loc = MC_Common::ArrayTsearch(fileNames, fileName); }
+        else { loc = Common::ArrayTsearch(fileNames, fileName); }
     }
     
     if(loc > -1) {

@@ -135,7 +135,7 @@ void DataWriter::setParams(string param="", string param2="", string param3="", 
             break;
         
         default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             break;
     }
 }
@@ -153,7 +153,7 @@ bool DataWriter::reconnect(bool attempt = true) {
     int attemptsMax = !attempt || (connectRetries < 1) ? 1 : connectRetries;
     
     for(int i = 0; i < attemptsMax; i++) {
-        if(i > 0) { MC_Error::PrintInfo(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
+        if(i > 0) { Error::PrintInfo(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
         
         disconnect();
         bResult = connect();
@@ -165,7 +165,7 @@ bool DataWriter::reconnect(bool attempt = true) {
     }
 
     blockingError = true;
-    MC_Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + EnumToString(dbType) + " after " + connectRetries + " attempts", FunctionTrace);
+    Error::ThrowError(ErrorNormal, "Could not reconnect to dbType: " + EnumToString(dbType) + " after " + connectRetries + " attempts", FunctionTrace);
 
     return false;
 }
@@ -176,7 +176,7 @@ bool DataWriter::connect() {
         case DW_Sqlite: // param = file path
             iResult = sqlite.Connect(filePath);
             if(iResult != SQLITE_OK) {
-                MC_Error::ThrowError(ErrorNormal, "SQLite failed init: " + iResult + " - " + sqlite.ErrorMsg(), FunctionTrace);
+                Error::ThrowError(ErrorNormal, "SQLite failed init: " + iResult + " - " + sqlite.ErrorMsg(), FunctionTrace);
                 return false;
             }
             else { return true; }
@@ -185,7 +185,7 @@ bool DataWriter::connect() {
 //            bResult = init_MySQL(dbConnectId, dbHost, dbUser, dbPass, dbName, dbPort, dbSocket, dbClient);
 //
 //            if(!bResult) { 
-//                MC_Error::ThrowError(ErrorNormal, "MySQL failed init", FunctionTrace); 
+//                Error::ThrowError(ErrorNormal, "MySQL failed init", FunctionTrace); 
 //                return false; 
 //            } 
 //            else { return true; }
@@ -194,7 +194,7 @@ bool DataWriter::connect() {
             bResult = PSQL_Init(dbConnectId, dbConnectString);
 
             if(!bResult) { 
-                MC_Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorString, FunctionTrace); 
+                Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorString, FunctionTrace); 
                 return false; 
             }
             else { return true; }
@@ -204,12 +204,12 @@ bool DataWriter::connect() {
             fileHandle = FileOpen(filePath, FILE_SHARE_READ|FILE_SHARE_WRITE|(dbType == DW_Csv ? FILE_CSV : FILE_TXT)|FILE_UNICODE, csvSep);
             
             if(fileHandle == INVALID_HANDLE) {
-                MC_Error::ThrowError(ErrorNormal, "Text file could not be opened: " + GetLastError(), FunctionTrace, filePath);
+                Error::ThrowError(ErrorNormal, "Text file could not be opened: " + GetLastError(), FunctionTrace, filePath);
                 return false;
             } else { return true; }
         
         default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             return false;
     }
 }
@@ -236,7 +236,7 @@ void DataWriter::disconnect() {
             break;
         
         default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             break;
     }
 }
@@ -246,7 +246,7 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
         case DW_Sqlite:
             if(!sqlite.IsConnected()) {
                 if(doReconnect) {
-                    MC_Error::ThrowError(ErrorNormal, "SQLite: Connection is bad, reconnecting...", FunctionTrace);
+                    Error::ThrowError(ErrorNormal, "SQLite: Connection is bad, reconnecting...", FunctionTrace);
                     return reconnect(doAttempts); 
                 } else { return false; }
             } else { return true; }
@@ -255,7 +255,7 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
             ConnStatusType status = PQstatus(dbConnectId);
             if(status == CONNECTION_BAD) {
                 if(doReconnect) { 
-                    MC_Error::ThrowError(ErrorNormal, "PgSQL: Connection is bad, reconnecting...", FunctionTrace);
+                    Error::ThrowError(ErrorNormal, "PgSQL: Connection is bad, reconnecting...", FunctionTrace);
                     return reconnect(doAttempts); 
                 }
                 else { return false; }
@@ -266,13 +266,13 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
         case DW_Csv:
             if(fileHandle == INVALID_HANDLE) {
                 if(doReconnect) {
-                    MC_Error::ThrowError(ErrorNormal, "File: Handle invalid, reopening...", FunctionTrace);
+                    Error::ThrowError(ErrorNormal, "File: Handle invalid, reopening...", FunctionTrace);
                     return reconnect(doAttempts); 
                 } else { return false; }
             } else { return true; }
         
         default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             return true;
     }
 }
@@ -325,16 +325,16 @@ bool DataWriter::queryRun(string dataInput) {
                     }
                     else { return true; }
                 } else { 
-                    MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
+                    Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
                     return false; 
                 }
                 
             case DW_Csv:
-                MC_Error::PrintInfo(ErrorInfo, "Skipping CSV file for queryRun, use getCsvHandle and FileWrite", FunctionTrace);
+                Error::PrintInfo(ErrorInfo, "Skipping CSV file for queryRun, use getCsvHandle and FileWrite", FunctionTrace);
                 return false;
             
             default:
-                MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
                 return false;
         }
     }
@@ -368,7 +368,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                 for (i = 0; i < rowCount; i++) {
                     CSQLite3Row *row = tbl.Row(i);
                     if(!CheckPointer(row)) {
-                        MC_Error::ThrowError(ErrorNormal, "Query error: row pointer invalid", FunctionTrace, query);
+                        Error::ThrowError(ErrorNormal, "Query error: row pointer invalid", FunctionTrace, query);
                         continue;
                     }
     
@@ -380,7 +380,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                     if(CheckPointer(row) == POINTER_DYNAMIC) { delete(row); }
                 }
                 if(i <= 0 || j <= 0) {
-                    MC_Error::PrintInfo(ErrorMinor, "Query: " + i + " rows, " + j + " columns returned: " + i, FunctionTrace, query, ErrorForceFile);
+                    Error::PrintInfo(ErrorMinor, "Query: " + i + " rows, " + j + " columns returned: " + i, FunctionTrace, query, ErrorForceFile);
                 }
                 
                 return i;
@@ -405,11 +405,11 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                 
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
-                MC_Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
                 return -1;           
         
             default:
-                MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
                 return -1;
         }
     }
@@ -444,7 +444,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                     if(i == rowIndex) {
                         CSQLite3Row *row = tbl.Row(i);
                         if(!CheckPointer(row)) {
-                            MC_Error::ThrowError(ErrorNormal, "Query error: row pointer invalid", FunctionTrace, query);
+                            Error::ThrowError(ErrorNormal, "Query error: row pointer invalid", FunctionTrace, query);
                             break;
                         }
     
@@ -483,7 +483,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                     
                     if(dim0Size < rowIndex+1/* || dim1Size < colIndex+1*/) { 
                         // we can't determine colSize valid because we already size the col dimension to the requested index
-                        MC_Error::PrintInfo(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, ErrorForceFile);
+                        Error::PrintInfo(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, ErrorForceFile);
                         return false;
                     } else {
                         dbResult = allRows[rowIndex][colIndex];
@@ -494,11 +494,11 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                 
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
-                MC_Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
                 return false;           
         
             default:
-                MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
                 return false;
         }
         
@@ -506,12 +506,12 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
             string type = typename(T);
             if(type == "int") { result = StringToInteger(dbResult); }
             else if(type =="double") { result = StringToDouble(dbResult); }
-            else if(type == "bool") { result = MC_Common::StrToBool(dbResult); }
+            else if(type == "bool") { result = Common::StrToBool(dbResult); }
             else { result = dbResult; }
             
             return true;
         } else {
-            MC_Error::PrintInfo(ErrorMinor, "Query did not return data: ", FunctionTrace, query, ErrorForceFile);
+            Error::PrintInfo(ErrorMinor, "Query did not return data: ", FunctionTrace, query, ErrorForceFile);
             return false; 
         }
     }
@@ -521,12 +521,12 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
 
 bool DataWriter::checkSafe() {
     if(blockingError) {
-        //MC_Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
+        //Error::ThrowError(ErrorMinor, "Fatal error occurred, skipping.", FunctionTrace, dbType);
         return false;
     }
     
     if(!checkConnection(true)) {
-        MC_Error::ThrowError(ErrorMinor, "DB not connected, skipping.", FunctionTrace, dbType);
+        Error::ThrowError(ErrorMinor, "DB not connected, skipping.", FunctionTrace, dbType);
         return false;
     }
     
@@ -542,7 +542,7 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
         
     switch(dbType) {
         case DW_Sqlite:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
+            Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
             
             if(blockingError) { return false; }
             
@@ -552,7 +552,7 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
                 case 6: //SQLITE_LOCKED
                 case 10: //SQLITE_IOERR
                     sleepInterval = (connectRetryDelaySecs*1000)+(500*MathRand()/32767);
-                    MC_Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
+                    Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
                     Sleep(sleepInterval); // add fuzz up to 500ms
                     return true;
                 
@@ -562,11 +562,11 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
             break;
 
         //case DW_Mysql:
-        //    MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
+        //    Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
         //    break;
 
         case DW_Postgres:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
+            Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
             
             if(blockingError) { return false; }
             
@@ -589,12 +589,12 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
             break;
 
         case DW_Text:
-            MC_Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
+            Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
             if(blockingError) { return false; }
             break;
         
         default:
-            MC_Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
+            Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             if(blockingError) { return false; }
             break;
     }
@@ -623,12 +623,12 @@ bool DataWriter::getCsvHandle(int &outFileHandle) {
     
                     return true;
                 } else {
-                    MC_Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
+                    Error::ThrowError(ErrorNormal, "File handle invalid", FunctionTrace, filePath); 
                     false;
                 }    
                 
             default:
-                MC_Error::ThrowError(ErrorNormal, "dbType is not CSV", FunctionTrace, dbType);
+                Error::ThrowError(ErrorNormal, "dbType is not CSV", FunctionTrace, dbType);
                 return false;
         }
     }

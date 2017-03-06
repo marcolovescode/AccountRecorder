@@ -31,15 +31,15 @@ bool FirstTimerRun = true;
 //MainAccountRecorder *AccountMan;
 
 int OnInit() {
-    MC_Error::DebugLevel = DebugLevel;
-    MC_Error::LogAllErrorsToFile = LogAllErrorsToFile;
-    MC_Error::LogAllErrorsToTerminal = LogAllErrorsToTerminal;
-    MC_Error::FilePath = ErrorLogFileName;
+    Error::DebugLevel = ::DebugLevel;
+    Error::LogAllErrorsToFile = ::LogAllErrorsToFile;
+    Error::LogAllErrorsToTerminal = ::LogAllErrorsToTerminal;
+    Error::FilePath = ::ErrorLogFileName;
     
     MAR_LoadScripts();
     
-    MC_Error::PrintInfo(ErrorInfo, "AccountRecorder");
-    MC_Error::PrintInfo(ErrorInfo, "Connecting to databases...");
+    Error::PrintInfo(ErrorInfo, "AccountRecorder");
+    Error::PrintInfo(ErrorInfo, "Connecting to databases...");
     Comment("AccountRecorder\r\n"
         , "\r\n"
         , "Connecting to databases..."
@@ -49,7 +49,7 @@ int OnInit() {
     
     SetTimer(true);
     
-    MC_Error::PrintInfo(ErrorInfo, "Waiting for first run...");
+    Error::PrintInfo(ErrorInfo, "Waiting for first run...");
     Comment("AccountRecorder\r\n"
         , "\r\n"
         , "Starting first run " + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds..." : "") + "\r\n"
@@ -62,14 +62,14 @@ bool SetTimer(bool firstRun = false) {
     bool result = false;
     
     if(firstRun) {
-        if(DelayedEntrySeconds > 0) { result = MC_Common::EventSetTimerReliable(DelayedEntrySeconds); }
-        else { result = MC_Common::EventSetMillisecondTimerReliable(255); }
+        if(DelayedEntrySeconds > 0) { result = Common::EventSetTimerReliable(DelayedEntrySeconds); }
+        else { result = Common::EventSetMillisecondTimerReliable(255); }
     } else {
-        result = MC_Common::EventSetTimerReliable(MC_Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
+        result = Common::EventSetTimerReliable(Common::GetGcd(OrderRefreshSeconds, EquityRefreshSeconds));
     }
     
     if(!result) {
-        MC_Error::ThrowFatalError(ErrorFatal, "Could not set run timer; try to reload the EA.", FunctionTrace);
+        Error::ThrowFatalError(ErrorFatal, "Could not set run timer; try to reload the EA.", FunctionTrace);
     }
     
     return result;

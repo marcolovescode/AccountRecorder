@@ -101,25 +101,25 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
     if(!finishedCycle && !force) { return false; } // todo: feedback?
     
     if(!IsConnected()) {
-        MC_Error::ThrowError(ErrorNormal, "Not connected to broker, will attempt first run on cycle.", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Not connected to broker, will attempt first run on cycle.", FunctionTrace);
         displayFeedback(true);
         return false;
     }
     
-    MC_Error::PrintInfo(ErrorInfo, "Starting first run", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "Starting first run", FunctionTrace, NULL, ErrorForceTerminal);
     displayFeedback(); // starting first run
     
     finishedCycle = false;
     
     if(!AccountMan.setupSchema()) {
-        MC_Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
         dWriterMan.resetBlockingErrors();
         displayFeedback(true, false, true);
         finishedCycle = true;
         return false;
     }
     if(!AccountMan.setupAccountRecords()) {
-        MC_Error::ThrowError(ErrorNormal, "Aborting first run, could not create account records.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Aborting first run, could not create account records.", FunctionTrace, NULL, false, ErrorForceTerminal);
         dWriterMan.resetBlockingErrors();
         displayFeedback(true, false, true, true);
         finishedCycle = true;
@@ -127,7 +127,7 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
     }
     AccountMan.doCycle(true);
     
-    MC_Error::PrintInfo(ErrorInfo, "First run complete.", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "First run complete.", FunctionTrace, NULL, ErrorForceTerminal);
     firstRunComplete = true;
     finishedCycle = true;
     displayFeedback();
@@ -138,7 +138,7 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
 bool MainAccountRecorder::setupSchema() {
     string scriptSrc[];
 
-    MC_Error::PrintInfo(ErrorInfo, "Setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "Setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
 
     // todo: ordering and modes for DB types
 
@@ -155,7 +155,7 @@ bool MainAccountRecorder::setupSchema() {
     }
     
     checkSchema();
-    MC_Error::PrintInfo(ErrorInfo, "Finished setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "Finished setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
 
     return schemaReady;
 }
@@ -174,12 +174,12 @@ bool MainAccountRecorder::checkSchema() {
             , DW_Postgres
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "PgSQL: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, "PgSQL: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
         } else {
             schemaReady = (tableCount == expectedTableCount);
             
             if(!schemaReady) {
-                MC_Error::ThrowError(ErrorNormal, "PgSQL Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+                Error::ThrowError(ErrorNormal, "PgSQL Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
                 return false;
             }
         }
@@ -193,12 +193,12 @@ bool MainAccountRecorder::checkSchema() {
             , DW_Sqlite
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "SQLite: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, "SQLite: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
         } else {
             schemaReady = (tableCount == expectedTableCount);
             
             if(!schemaReady) {
-                MC_Error::ThrowError(ErrorNormal, "SQLite Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+                Error::ThrowError(ErrorNormal, "SQLite Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
                 return false;
             }
         }
@@ -209,7 +209,7 @@ bool MainAccountRecorder::checkSchema() {
 
 bool MainAccountRecorder::setupAccountRecords() {
     if(!IsConnected()) {
-        MC_Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace, NULL, false, ErrorForceTerminal);
         return false;
     }
     
@@ -221,7 +221,7 @@ bool MainAccountRecorder::setupAccountRecords() {
     string actCompany = AccountInfoString(ACCOUNT_COMPANY);
     
     if(actNum <= 0 || StringLen(curName) < 1) {
-        MC_Error::ThrowError(ErrorNormal, "Cannot get account number or currency name", FunctionTrace, actNum +"|" + curName);
+        Error::ThrowError(ErrorNormal, "Cannot get account number or currency name", FunctionTrace, actNum +"|" + curName);
         return false;
     }
     
@@ -235,13 +235,13 @@ bool MainAccountRecorder::setupAccountRecords() {
             )
         , ""
         , ""
-        , MC_Common::GetUuid()
+        , Common::GetUuid()
         , -1
         , -1
         , true
         )
     ) {
-        MC_Error::ThrowError(ErrorNormal, "Could not create identifying currency record", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Could not create identifying currency record", FunctionTrace);
     }
     
     if(!dWriterMan.queryRunConditional(
@@ -259,13 +259,13 @@ bool MainAccountRecorder::setupAccountRecords() {
             )
         , ""
         , ""
-        , MC_Common::GetUuid()
+        , Common::GetUuid()
         , -1
         , -1
         , true
         )
     ) {
-        MC_Error::ThrowError(ErrorNormal, "Could not create identifying account record", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Could not create identifying account record", FunctionTrace);
     }
     
     return true;
@@ -275,7 +275,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     if(!finishedCycle && !force) { return; } // todo: feedback?
     
     if(!IsConnected()) {
-        MC_Error::ThrowError(ErrorNormal, "Not connected to broker, cannot do cycle.", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Not connected to broker, cannot do cycle.", FunctionTrace);
         dWriterMan.resetBlockingErrors();
         displayFeedback(); // IsConnected() checked in feedback
         return;
@@ -284,9 +284,9 @@ void MainAccountRecorder::doCycle(bool force = false) {
     datetime currentTimerTime = TimeLocal();
     
     if(SkipWeekends) {
-        if(MC_Common::IsDatetimeInRange(currentTimerTime, EndWeekday, EndWeekdayHour, StartWeekday, StartWeekdayHour)) {
+        if(Common::IsDatetimeInRange(currentTimerTime, EndWeekday, EndWeekdayHour, StartWeekday, StartWeekdayHour)) {
             if(!firstWeekendNoticeFired) {
-                MC_Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
+                Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
                 firstWeekendNoticeFired = true;
             } else if(!force) { 
                 dWriterMan.resetBlockingErrors(); 
@@ -300,11 +300,11 @@ void MainAccountRecorder::doCycle(bool force = false) {
     
     finishedCycle = false;
     displayFeedback();
-    MC_Error::PrintInfo(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, ErrorForceTerminal);
     
     if(!checkSchema()) {
         if(!setupSchema()) {
-            MC_Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
             dWriterMan.resetBlockingErrors();
             finishedCycle = true;
             displayFeedback(false, false, true);
@@ -313,13 +313,13 @@ void MainAccountRecorder::doCycle(bool force = false) {
     }
     
     if(EnableOrderRecording && (force || (currentTimerTime - lastOrderTime >= OrderRefreshSeconds))) {
-        MC_Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorForceTerminal);
+        Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorForceTerminal);
         lastOrderSuccess = updateOrders();
         lastOrderTime = currentTimerTime;
     }
     
     if(EnableEquityRecording && (force || (currentTimerTime - lastEquityTime >= EquityRefreshSeconds))) {
-        MC_Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorForceTerminal);
+        Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorForceTerminal);
         lastEquitySuccess = updateEquity();
         lastEquityTime = currentTimerTime;
     }
@@ -328,7 +328,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
         dWriterMan.queryRun("PRAGMA shrink_memory", DW_Sqlite, -1, true);
     }
     
-    MC_Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
     dWriterMan.resetBlockingErrors();
     finishedCycle = true;
     if(firstRunComplete) { displayFeedback(); }
@@ -375,18 +375,18 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
             , orderNum
             , orderCom
             , OrderMagicNumber()
-            , MC_Common::GetSqlDatetime(OrderOpenTime(), true, BrokerTimeZone)
+            , Common::GetSqlDatetime(OrderOpenTime(), true, BrokerTimeZone)
             , orderNum
             )
         , ""
         , ""
-        , MC_Common::GetUuid()
+        , Common::GetUuid()
         , -1
         , -1
         , UseAllWriters
         )
     ) {
-        MC_Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace, orderNum);
+        Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace, orderNum);
         orderUuidOut = "";
         return false;
     }
@@ -409,13 +409,13 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
                 )
             , ""
             , ""
-            , orderUuid // MC_Common::GetUuid()
+            , orderUuid // Common::GetUuid()
             , -1
             , -1
             , UseAllWriters
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not create order-specific record", FunctionTrace, orderNum);
+            Error::ThrowError(ErrorNormal, "Could not create order-specific record", FunctionTrace, orderNum);
         }
         
         recordOrderExit(orderUuid);
@@ -438,13 +438,13 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
                 )
             , ""
             , ""
-            , MC_Common::GetUuid()
+            , Common::GetUuid()
             , -1
             , -1
             , UseAllWriters
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not create balance split", FunctionTrace, orderNum);
+            Error::ThrowError(ErrorNormal, "Could not create balance split", FunctionTrace, orderNum);
         }
     }
     
@@ -454,7 +454,7 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
 
 bool MainAccountRecorder::recordOrderExit(string orderUuid) {
     if(OrderType() > OP_SELL) { 
-        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
         return false;
     }
     
@@ -468,7 +468,7 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
             , exitSpecificUuid
             , ""
             , StringFormat("INSERT INTO txn_orders_exit (txn_uuid, exit_datetime, exit_lots, exit_price, exit_stoploss, exit_takeprofit, exit_comment) VALUES ('%%s', '%s', '%f', '%f', '%f', '%f', '%s');"
-                , MC_Common::GetSqlDatetime(OrderCloseTime(), true, BrokerTimeZone)
+                , Common::GetSqlDatetime(OrderCloseTime(), true, BrokerTimeZone)
                 , OrderLots()
                 , OrderClosePrice()
                 , OrderStopLoss()
@@ -477,13 +477,13 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
                 )
             , ""
             , ""
-            , orderUuid // MC_Common::GetUuid()
+            , orderUuid // Common::GetUuid()
             , -1
             , -1
             , UseAllWriters
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not create order-specific exit record", FunctionTrace, OrderTicket());
+            Error::ThrowError(ErrorNormal, "Could not create order-specific exit record", FunctionTrace, OrderTicket());
             return false;
         }
     }
@@ -493,7 +493,7 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
 
 bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
     if(OrderType() > OP_SELL) { 
-        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
         return false;
     }
     
@@ -515,7 +515,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 )
             , ""
             , ""
-            , MC_Common::GetUuid()
+            , Common::GetUuid()
             , -1 
             , -1
             , UseAllWriters
@@ -534,11 +534,11 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 , UseAllWriters
                 )
             ) {
-                MC_Error::ThrowError(ErrorNormal, "Could not update order commission split", FunctionTrace, OrderTicket());
+                Error::ThrowError(ErrorNormal, "Could not update order commission split", FunctionTrace, OrderTicket());
                 returnResult = false;
             }
         } else {
-            MC_Error::ThrowError(ErrorNormal, "Could not create order commission split", FunctionTrace, OrderTicket());
+            Error::ThrowError(ErrorNormal, "Could not create order commission split", FunctionTrace, OrderTicket());
             returnResult = false;
         }
     }
@@ -559,7 +559,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 )
             , ""
             , ""
-            , MC_Common::GetUuid()
+            , Common::GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -578,11 +578,11 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 , UseAllWriters    
                 )
             ) {
-                MC_Error::ThrowError(ErrorNormal, "Could not update order swap split", FunctionTrace, OrderTicket());
+                Error::ThrowError(ErrorNormal, "Could not update order swap split", FunctionTrace, OrderTicket());
                 returnResult = false;
             }
         } else {
-            MC_Error::ThrowError(ErrorNormal, "Could not create order swap split", FunctionTrace, OrderTicket());
+            Error::ThrowError(ErrorNormal, "Could not create order swap split", FunctionTrace, OrderTicket());
             returnResult = false;
         }
     }
@@ -602,7 +602,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
             )
         , ""
         , ""
-        , MC_Common::GetUuid()
+        , Common::GetUuid()
         , -1
         , -1
         , UseAllWriters
@@ -621,11 +621,11 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
             , UseAllWriters
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not update order withdrawal split", FunctionTrace, OrderTicket());
+            Error::ThrowError(ErrorNormal, "Could not update order withdrawal split", FunctionTrace, OrderTicket());
             returnResult = false;
         }
     } else {
-        MC_Error::ThrowError(ErrorNormal, "Could not create order withdrawal split", FunctionTrace, OrderTicket());
+        Error::ThrowError(ErrorNormal, "Could not create order withdrawal split", FunctionTrace, OrderTicket());
         returnResult = false;
     }
     
@@ -634,7 +634,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
 
 bool MainAccountRecorder::recordOrderElection(string orderUuid) {
     if(OrderType() > OP_SELL) { 
-        MC_Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
         return false;
     }
     
@@ -649,18 +649,18 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
                 , orderUuid
                 , ElectionId
                 , 1 // true
-                , MC_Common::GetSqlDatetime(TimeLocal(), true)
-                , MC_Common::GetSqlDatetime(TimeLocal(), true) // todo: sql trigger instead?
+                , Common::GetSqlDatetime(TimeLocal(), true)
+                , Common::GetSqlDatetime(TimeLocal(), true) // todo: sql trigger instead?
                 )
             , ""
             , ""
-            , MC_Common::GetUuid()
+            , Common::GetUuid()
             , -1
             , -1
             , UseAllWriters
             )
         ) {
-            MC_Error::ThrowError(ErrorNormal, "Could not create order election entry", FunctionTrace, OrderTicket());
+            Error::ThrowError(ErrorNormal, "Could not create order election entry", FunctionTrace, OrderTicket());
             return false;
         }
         return true;
@@ -669,12 +669,12 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
 }
 
 bool MainAccountRecorder::updateEquity() {
-    string equityUuid = MC_Common::GetUuid(); string query = "";
+    string equityUuid = Common::GetUuid(); string query = "";
     
     query = StringFormat("INSERT INTO act_equity (uuid, act_uuid, record_datetime, leverage, margin_so_mode, margin_so_call, margin_so_so, balance, equity, credit, margin) VALUES ('%s', '%s', '%s', '%i', '%i', '%f', '%f', '%f', '%f', '%f', '%f');"
         , equityUuid
         , uuidAccount
-        , MC_Common::GetSqlDatetime(TimeLocal(), true)
+        , Common::GetSqlDatetime(TimeLocal(), true)
         , AccountInfoInteger(ACCOUNT_LEVERAGE)
         , AccountInfoInteger(ACCOUNT_MARGIN_SO_MODE)
         , AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL)
@@ -685,7 +685,7 @@ bool MainAccountRecorder::updateEquity() {
         , AccountInfoDouble(ACCOUNT_MARGIN)
         );
     if(!dWriterMan.queryRun(query, -1, -1, UseAllWriters)) {
-        MC_Error::ThrowError(ErrorNormal, "Could not record account equity", FunctionTrace, equityUuid);
+        Error::ThrowError(ErrorNormal, "Could not record account equity", FunctionTrace, equityUuid);
     }
     
     int orderCount = OrdersTotal();
@@ -707,7 +707,7 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
     string query = "";
     
     if(!recordOrder(orderUuid)) {
-        MC_Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace);
+        Error::ThrowError(ErrorNormal, "Could not create identifying order record", FunctionTrace);
     }
     
     // todo: should lots be recorded in equity? how about comments?
@@ -732,7 +732,7 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
 //        , OrderComment()
         );
     if(!dWriterMan.queryRun(query, -1, -1, UseAllWriters)) {
-        MC_Error::ThrowError(ErrorNormal, "Could not create order equity entry", FunctionTrace, orderNum);
+        Error::ThrowError(ErrorNormal, "Could not create order equity entry", FunctionTrace, orderNum);
     }
     
     return true;

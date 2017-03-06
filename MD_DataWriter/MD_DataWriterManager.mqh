@@ -65,7 +65,7 @@ int DataWriterManager::addDataWriter(DataWriterType dbType, int connectRetries=5
     
     dWriters[size] = new DataWriter(dbType, connectRetries, connectRetryDelaySecs, param, param2, param3, param4, param5, param6, param7);
     
-    if(dbType == DW_Csv) { MC_Common::ArrayPush(dwCsvIds, size); }
+    if(dbType == DW_Csv) { Common::ArrayPush(dwCsvIds, size); }
     
     return size;
 }
@@ -99,7 +99,7 @@ bool DataWriterManager::queryRun(string dataInput, DataWriterType forDbType = -1
     for(int i = 0; i < dWritersLength; i++) {
         bool result = queryRunByIndex(i, dataInput, forDbType, ignoreDbType);
         if(doAll && !result) {
-            //MC_Error::ThrowError(ErrorNormal, "Query run failed for " + EnumToString(dWriters[i].dbType), FunctionTrace);
+            //Error::ThrowError(ErrorNormal, "Query run failed for " + EnumToString(dWriters[i].dbType), FunctionTrace);
             failures++;
         }
         if(!doAll && result) { return true; }
@@ -164,7 +164,7 @@ bool DataWriterManager::scriptRunByIndex(int index,string &scriptSrc[],DataWrite
     string query = ""; string subclause = ""; bool finalResult = false;
     
     for(int i = 0; i < scriptLines; i++) {
-        subclause = MC_Common::StringTrim(scriptSrc[i]);
+        subclause = Common::StringTrim(scriptSrc[i]);
         
         if(StringLen(subclause) > 0) { query += " " + subclause; }
         if(StringFind(query, ";", StringLen(query)-1) > 0) {
@@ -211,9 +211,9 @@ bool DataWriterManager::queryRunConditional(string ifQuery, T &outValue, bool &o
         T curCallValue = NULL; bool curCallSkipped = false;
         bool curCallResult = queryRetrieveOneByIndex(i, ifQuery, curCallValue, curCallSkipped, 0, forDbType, ignoreDbType);
         
-        MC_Common::ArrayPush(callSkipped, curCallSkipped);
-        MC_Common::ArrayPush(callResult, curCallResult);
-        MC_Common::ArrayPush(callValue, curCallValue);
+        Common::ArrayPush(callSkipped, curCallSkipped);
+        Common::ArrayPush(callResult, curCallResult);
+        Common::ArrayPush(callValue, curCallValue);
         
         if(curCallResult && !masterFilled) {
             outResult = curCallResult;
@@ -255,7 +255,7 @@ bool DataWriterManager::queryRunConditional(string ifQuery, T &outValue, bool &o
         
         if(doAll) {
             if(!curCallResult && returnResult) { 
-                //MC_Error::ThrowError(ErrorNormal, "Query failed on DB " + EnumToString(dWriters[i].dbType), FunctionTrace);
+                //Error::ThrowError(ErrorNormal, "Query failed on DB " + EnumToString(dWriters[i].dbType), FunctionTrace);
                 failures++;
             }
         } else {
