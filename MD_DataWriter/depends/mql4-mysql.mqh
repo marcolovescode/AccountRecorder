@@ -153,7 +153,7 @@ bool MySQL_Query(int dbConnectId, string query) {
 //|                                                                            |
 //| return (-1): error; (0): 0 rows selected; (1+): some rows selected;         |
 //+----------------------------------------------------------------------------+
-int MySQL_FetchArray(int dbConnectId, string query, string & data[][]){
+int MySQL_FetchArray(int dbConnectId, string query, string &data[][]){
 
     if ( !MySQL_Query(dbConnectId, query) ) {
         return (-1);

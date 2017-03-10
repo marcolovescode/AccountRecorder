@@ -747,12 +747,12 @@ void MainAccountRecorder::displayFeedback(bool firstRunFailed = false, bool isWe
     Comment(
         "AccountRecorder\r\n"
         , (int)lastOrderTime > 0 ? 
-            "Last Order Cycle: " + TimeToStr(lastOrderTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
+            "Last Order Cycle: " + TimeToString(lastOrderTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
                 + (!lastOrderSuccess ? " (Failed!)" : "")
                 + "\r\n"
             : ""
         , (int)lastEquityTime > 0 ? 
-            "Last Equity Cycle: " + TimeToStr(lastEquityTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
+            "Last Equity Cycle: " + TimeToString(lastEquityTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS)
                 + (!lastEquitySuccess ? " (Failed!)" : "")
                 + "\r\n"
             : ""

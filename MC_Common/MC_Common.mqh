@@ -145,7 +145,15 @@ int Common::ArrayTsearch(string &array[], string value, int count=-1, int start=
 }
 
 string Common::StringTrim(string inputStr) {
+#ifdef __MQL5__
+    string workStr = inputStr;
+    StringTrimRight(workStr);
+    StringTrimLeft(workStr);
+    
+    return workStr;
+#else
     return StringTrimLeft(StringTrimRight(inputStr));
+#endif  
 }
 
 //template<typename T>
@@ -160,7 +168,7 @@ bool Common::StrToBool(string inputStr) {
     
     if(StringCompare(testStr,"true") == 0 || StringCompare(testStr,"t") == 0) { return true; }
     else if(StringCompare(testStr,"false") == 0 || StringCompare(testStr,"f") == 0) { return false; }
-    else return (bool)StrToInteger(testStr);
+    else return (bool)StringToInteger(testStr);
 }
 
 bool Common::IsAddrAbcValid (string addrAbc) {
@@ -219,7 +227,7 @@ StringType Common::GetStringType(string test) {
     ushort code;
     
     for(int i= 0; i < len; i++) {
-        code = StringGetChar(test, i);
+        code = StringGetCharacter(test, i);
         if(code >= 65 && code <= 90) { uppercase = true; }
         else if(code >= 97 && code <= 122) { lowercase = true; }
         else if(code >= 48 && code <= 57) { numeric = true; }
@@ -273,14 +281,14 @@ string Common::GetUuid()
       else if(i==19)
         {
          character = (ushort) MathRand() % 4;
-         character = StringGetChar(alphabet_y, character);
+         character = StringGetCharacter(alphabet_y, character);
         }
       else
         {
          character = (ushort) MathRand() % 16;
-         character = StringGetChar(alphabet_x, character);
+         character = StringGetCharacter(alphabet_x, character);
         }
-      id=StringSetChar(id,i,character);
+      id=StringSetCharacter(id,i,character);
      }
    return (id);
   }
@@ -301,7 +309,7 @@ bool Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHo
 string Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/) {
     // todo: microseconds?
     
-    string result = TimeToStr(source, TIME_DATE|TIME_MINUTES|TIME_SECONDS);
+    string result = TimeToString(source, TIME_DATE|TIME_MINUTES|TIME_SECONDS);
     
     // Format: yyyy/mm/dd hh:mm:ss[-+]xx:xx (timezone)
     // replace first .'s with //

@@ -192,7 +192,7 @@ bool PSQL_Query(PTR32 dbConnectId, string query)
 //+----------------------------------------------------------------------------+
 //| Fetch row(s) in a 2-dimansional array                                      |
 //|                                                                            |
-//| return (-1): error; (0): 0 rows selected; (1+): some rows selected;         |
+//| return (-1): error; (0): 0 rows selected; (1+): some rows selected;        |
 //+----------------------------------------------------------------------------+
 int PSQL_FetchArray(PTR32 dbConnectId, string query, string &data[][])
   {

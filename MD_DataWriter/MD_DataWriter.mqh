@@ -131,7 +131,7 @@ void DataWriter::setParams(string param="", string param2="", string param3="", 
             
         case DW_Csv:
             filePath = param;
-            if(StringLen(param2) == 1) { csvSep = StringGetChar(param2, 0); }
+            if(StringLen(param2) == 1) { csvSep = StringGetCharacter(param2, 0); }
             else { csvSep = ';'; }
             break;
         
