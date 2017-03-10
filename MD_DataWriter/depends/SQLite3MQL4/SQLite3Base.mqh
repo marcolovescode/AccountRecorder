@@ -29,6 +29,7 @@ public:
    int               Connect(string dbfile, bool alwaysDisconnectAfterCalls = false);
    int              Disconnect();
    int               Reconnect();
+   void              FreeMemory();
    //--- error message
    string            ErrorMsg();
 
@@ -107,6 +108,14 @@ int CSQLite3Base::Reconnect()
    int res=::sqlite3_open_v2(file,m_db,flags,zVfs);
    m_bopened=(res==SQLITE_OK && m_db);
    return(res);
+  }
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void CSQLite3Base::FreeMemory() 
+  {
+   // queryRun("PRAGMA shrink_memory", DW_Sqlite, -1, true);
+   ::sqlite3_db_release_memory(m_db);
   }
 //+------------------------------------------------------------------+
 //| Error message                                                    |

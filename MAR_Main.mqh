@@ -325,7 +325,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     }
     
     if(EnableSqlite && SlForceFreeMem) {
-        dWriterMan.queryRun("PRAGMA shrink_memory", DW_Sqlite, -1, true);
+        dWriterMan.freeMemory(DW_Sqlite);
     }
     
     Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);

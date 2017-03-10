@@ -49,6 +49,9 @@ class DataWriterManager {
     void resetBlockingErrors(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
 
     bool hasCsv();
+    
+    void freeMemoryByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    void freeMemory(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
 
     private:
     DataWriter *dWriters[];
@@ -292,4 +295,19 @@ void DataWriterManager::resetBlockingErrors(DataWriterType forDbType=-1,DataWrit
 
 bool DataWriterManager::hasCsv() {
     return (ArraySize(dwCsvIds) > 0);
+}
+
+void DataWriterManager::freeMemoryByIndex(int index, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+    if(forDbType > -1 && forDbType != dWriters[index].dbType) { return; }
+    if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return; }
+    
+    dWriters[index].freeMemory();
+}
+
+void DataWriterManager::freeMemory(DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+    int dWritersLength = ArraySize(dWriters);
+    
+    for(int i = 0; i < dWritersLength; i++) {
+        freeMemoryByIndex(i, forDbType, ignoreDbType);
+    }
 }

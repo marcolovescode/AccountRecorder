@@ -48,6 +48,7 @@ class DataWriter {
     bool connect();
     void disconnect();
     bool checkConnection(bool doReconnect = false, bool doAttempt = true);
+    void freeMemory();
     
     bool queryRun(string dataInput);
     int queryRetrieveRows(string query, string &result[][]);
@@ -274,6 +275,14 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
         default:
             Error::ThrowError(ErrorNormal, "dbType not supported", FunctionTrace, dbType);
             return true;
+    }
+}
+
+void DataWriter::freeMemory() {
+    switch(dbType) {
+        case DW_Sqlite:
+            sqlite.FreeMemory();
+            break;
     }
 }
 

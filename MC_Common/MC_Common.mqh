@@ -25,7 +25,9 @@ class Common {
     public:
     //array
     template<typename T>
-    static int ArrayPush(T &array[], T unit);
+    static void ArrayDelete(T &array[],int index, int diff=1, bool resize=true);
+    template<typename T>
+    static int ArrayPush(T &array[], T unit, int maxSize = -1);
     
     template<typename T>
     static int ArrayReserve(T &array[], int reserveSize);
@@ -34,6 +36,8 @@ class Common {
     
     // string
     static string StringTrim(string inputStr);
+    //template<typename T>
+    //static bool ConvertToBool(T in);
     static bool StrToBool(string inputStr);
     static bool IsAddrAbcValid (string addrAbc);
     static int AddrAbcToInt(string addrAbc, bool zeroBased=true);
@@ -54,13 +58,48 @@ class Common {
     static bool EventSetMillisecondTimerReliable(int milliseconds);
     
     static string GetRandomFileName(string prefix = "Log_", string ext = ".txt");
+    
+    template<typename T>
+    static void SafeDelete(T *pointer);
+    template<typename T>
+    static void SafeDelete(T pointer);
+    template<typename T>
+    static bool IsPointer(const T &value);
+    template<typename T>
+    static bool IsInvalidPointer(T *pointer);
+    
+    static double PriceToPips(double price, string symbol);
 };
 
+// https://github.com/dingmaotu/mql4-lib
 template<typename T>
-int Common::ArrayPush(T &array[], T unit) {
+void Common::ArrayDelete(T &array[],int index, int diff=1, bool resize=true) {
+   int size=ArraySize(array);
+   if(index<0 || index>=size) { return; }
+
+   bool isSeries = ArrayGetAsSeries(array);
+    
+   if(isSeries) { ArraySetAsSeries(array, false); }
+
+   if(index == size-diff) { SafeDelete(array[index]); }
+   else {
+      for(int i=index; i<size-diff; i++)
+        {
+         SafeDelete(array[i]); // in case this is a pointer
+         array[i]=array[i+diff];
+        }
+   }
+   
+   if(resize) { ArrayResize(array,size-diff); }
+   
+   if(isSeries) { ArraySetAsSeries(array, true); }
+}
+
+template<typename T>
+int Common::ArrayPush(T &array[], T unit, int maxSize = -1) {
     int size = ArraySize(array);
     int target = size; //int target = (isSeries ? 0 : size);
-    bool isSeries = ArrayIsSeries(array);
+    bool isSeries = ArrayGetAsSeries(array);
     
     if(isSeries) { ArraySetAsSeries(array, false); }
         // When ArraySetAsSeries, ArrayResize does not shift elements rightward
@@ -69,7 +108,15 @@ int Common::ArrayPush(T &array[], T unit) {
         // Theory: https://www.forexfactory.com/showthread.php?p=2878455#post2878455
         // Workaround: https://www.forexfactory.com/showthread.php?p=4686709#post4686709
     
-    ArrayResize(array, size+1);
+    if(maxSize > 0 && target >= maxSize) {
+        int maxDiff = target-maxSize+1;
+        ArrayDelete(array, 0, maxDiff, false);
+        ArrayResize(array, maxSize);
+        target = maxSize-1;
+    } else {
+        ArrayResize(array, size+1);
+    }
+    
     array[target] = unit;
     
     if(isSeries) { ArraySetAsSeries(array, true); }
@@ -100,6 +147,12 @@ int Common::ArrayTsearch(string &array[], string value, int count=-1, int start=
 string Common::StringTrim(string inputStr) {
     return StringTrimLeft(StringTrimRight(inputStr));
 }
+
+//template<typename T>
+//bool Common::ConvertToBool(T in) {
+//    if(typename(T) == "string") { return StrToBool(in); }
+//    else { return (bool)in; }
+//}
 
 bool Common::StrToBool(string inputStr) {
     StringToLower(inputStr);
@@ -308,4 +361,51 @@ bool Common::EventSetMillisecondTimerReliable(int milliseconds) {
 
 string Common::GetRandomFileName(string prefix = "Log_", string ext = ".txt") {
     return prefix + (int)TimeLocal() + "_" + (int)GetMicrosecondCount() + ext;
+}
+
+//+------------------------------------------------------------------+
+// https://github.com/dingmaotu/mql4-lib
+//+------------------------------------------------------------------+
+//| Generic safe pointer delete                                      |
+//+------------------------------------------------------------------+
+template<typename T>
+void Common::SafeDelete(T *pointer)
+  {
+   if(CheckPointer(pointer)==POINTER_DYNAMIC)
+     {
+      delete pointer;
+     }
+  }
+//+------------------------------------------------------------------+
+//| If pointer is actually a value type                              |
+//+------------------------------------------------------------------+
+template<typename T>
+void Common::SafeDelete(T pointer) {}
+//+------------------------------------------------------------------+
+//| Check if the value is a pointer type                             |
+//+------------------------------------------------------------------+
+template<typename T>
+bool Common::IsPointer(const T &value)
+  {
+   string tn=typename(value);
+// Note that a typename is at least of length > 0
+   return StringGetCharacter(tn, StringLen(tn) - 1) == '*';
+  }
+//+------------------------------------------------------------------+
+//| Generic pointer check                                            |
+//+------------------------------------------------------------------+
+template<typename T>
+bool Common::IsInvalidPointer(T *pointer)
+  {
+   return CheckPointer(pointer)==POINTER_INVALID;
+  }
+//+------------------------------------------------------------------+
+
+double Common::PriceToPips(double price, string symbol) {
+    int digits = MarketInfo(symbol, MODE_DIGITS);
+    
+    return NormalizeDouble(digits % 2 <= 0 ? price*MathPow(10, digits) : price*MathPow(10, digits-1), digits % 2);
+        // if digits is even (4, 2, ...), do digits as is. If digits is odd (3, 5, ...), assume one decimal place.
+        // digits % 2 = 0 means even, 1 means odd
+        // TODO: How about 6 digit brokers? And do they quote JPY in 4 digits, too?
 }
