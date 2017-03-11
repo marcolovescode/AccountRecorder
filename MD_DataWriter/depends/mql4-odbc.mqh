@@ -108,6 +108,7 @@ short SQLSetEnvAttr(PTR32 envHandle, int attribute, int value, int stringLen);
 //     SQLINTEGER *   StringLengthPtr);
 
 short SQLGetConnectAttr(PTR32 dbcHandle, int attribute, uchar &valueOut[], int bufferLength, int &stringLengthOut);
+short SQLGetConnectAttr(PTR32 dbcHandle, int attribute, uint &valueOut, int bufferLength, int &stringLengthOut);
 short SQLGetConnectAttr(PTR32 dbcHandle, int attribute, int &valueOut, int bufferLength, int &stringLengthOut);
 
 //SQLRETURN SQLGetDiagField(  
@@ -269,6 +270,7 @@ bool ODBC_Disconnect(PTR32 &dbcHandle, PTR32 &stmtHandle, bool stmtOnly = false)
 
     if(dbcHandle) {
         if(ODBC_Try(dbcHandle, SQL_HANDLE_DBC, SQLDisconnect(dbcHandle))) {
+            ODBC_ResetErrorCodes();
             dbcHandle = 0;
             return true;
         } else { return false; }
@@ -286,13 +288,22 @@ bool ODBC_IsConnected(PTR32 &dbcHandle) {
     // SQL_COPT_SS_CONNECTION_DEAD checks current state of conn by querying, but support is inconsistent
         // SQL Server 2000 defines as 1244
         // Other sources define as 1209, same as SQL_ATTR_CONNECTION_DEAD
-        
-    int result = 0; int resultLength = 0;
+    int result = -1;
+    int resultLength = 0;
+    
+    // PostgreSQL does not update SQL_ATTR_CONNECTION_DEAD when dropped
+    // check if last error message mentions connection dropped
+    // todo: how to do this properly??? also localization?
+    if(StringFind(ODBC_LastErrorMessage, "server closed the connection") > -1
+        || StringFind(ODBC_LastErrorMessage, "no connection to the server") > -1
+    ) { return false; }
     
     if(ODBC_Try(dbcHandle, SQL_HANDLE_DBC
-        , SQLGetConnectAttr(dbcHandle, SQL_ATTR_CONNECTION_DEAD, result, 1, resultLength)
+        , SQLGetConnectAttr(dbcHandle, SQL_ATTR_CONNECTION_DEAD, result, -6, resultLength)
         )
     ) {
+        //resultString = CharArrayToString(result, 0, resultLength);
+        //return StringFind(resultString, "true") > -1 ? false : true; // negate result
         return !result;
     } else { return false; }
 }
@@ -389,7 +400,9 @@ int ODBC_FetchArray(PTR32 &dbcHandle, PTR32 &stmtHandle, string query, string &d
 }
 
 bool ODBC_Try(int handle, int handleType, short callResult) {
-    if(((callResult)&(~1)) == 0) { return true; } // SQL_SUCCEEDED
+    if(((callResult)&(~1)) == 0) { // SQL_SUCCEEDED
+        return true; 
+    } 
     else {
         ODBC_GetError(handle, handleType, callResult, ODBC_PrintErrors); // could be info, not an actual error
     
@@ -399,16 +412,24 @@ bool ODBC_Try(int handle, int handleType, short callResult) {
     return true; // some results succeed with weird numbers like 65535
 }
 
+void ODBC_ResetErrorCodes() {
+    ODBC_LastErrorCode = 0;
+    ODBC_LastErrorMessage = "";
+    ODBC_LastErrorString = "";
+}
+
 void ODBC_GetError(int handle, int handleType, short callResult, bool print = false) {
     if(callResult == SQL_INVALID_HANDLE) {
         ODBC_LastErrorCode = -1;
         ODBC_LastErrorMessage = "Invalid handle";
-        ODBC_LastErrorString = ODBC_LastErrorCode + " - " + ODBC_LastErrorMessage;
+        ODBC_LastErrorString = ODBC_LastErrorCode + " (" + ODBC_LastErrorNativeCode + ") - " + ODBC_LastErrorMessage;
         
         if(print) { Print(ODBC_LastErrorString); }
         
         return;
     }
+    
+    ODBC_ResetErrorCodes();
     
     int iRec = 0; uchar sqlState[6]; int nativeErrorCode = 0; uchar messageText[1024]; int textLength = 0;
     while(SQLGetDiagRec(handleType, handle, ++iRec, sqlState, nativeErrorCode, messageText, 1024, textLength) == SQL_SUCCESS) {
@@ -417,7 +438,7 @@ void ODBC_GetError(int handle, int handleType, short callResult, bool print = fa
         if(textLength > 0) { ODBC_LastErrorMessage = CharArrayToString(messageText); }
         else { ODBC_LastErrorMessage = ODBC_LastErrorCode; }
         
-        ODBC_LastErrorString = ODBC_LastErrorCode + " - " + ODBC_LastErrorMessage;
+        ODBC_LastErrorString = ODBC_LastErrorCode + " (" + ODBC_LastErrorNativeCode + ") - " + ODBC_LastErrorMessage;
         
         if(print) { Print(ODBC_LastErrorString); }
     }

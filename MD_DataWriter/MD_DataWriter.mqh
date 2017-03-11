@@ -78,6 +78,8 @@ class DataWriter {
     
     template<typename T>
     bool handleErrorRetry(T errorCode, int errorLevel, string message, string funcTrace="", string params="", bool printToFile = false);
+    template<typename T>
+    bool handleErrorRetry(T errorCode, int nativeErrorCode, string dbErrorMessage, int errorLevel, string message, string funcTrace="", string params="", bool printToFile = false);
 };
 
 void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecsIn=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -266,7 +268,7 @@ bool DataWriter::queryRun(string dataInput) {
             case DW_Odbc:
                 bResult = ODBC_Query(dbcHandle, stmtHandle, dataInput);
                 if(!bResult) {
-                    working = handleErrorRetry(ODBC_LastErrorCode, ErrorNormal, "ODBC query failed: " + ODBC_LastErrorString, FunctionTrace, dataInput); 
+                    working = handleErrorRetry(ODBC_LastErrorCode, ODBC_LastErrorNativeCode, ODBC_LastErrorMessage, ErrorNormal, "ODBC query failed: " + ODBC_LastErrorString, FunctionTrace, dataInput); 
                     continue;
                 } else { return true; }
                 
@@ -325,7 +327,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
             case DW_Odbc:
                 callResult = ODBC_FetchArray(dbcHandle, stmtHandle, query, result);
                 if(callResult < 0) { 
-                    working = handleErrorRetry(ODBC_LastErrorCode, ErrorNormal, "Query error: " + ODBC_LastErrorString, FunctionTrace, query);
+                    working = handleErrorRetry(ODBC_LastErrorCode, ODBC_LastErrorNativeCode, ODBC_LastErrorMessage, ErrorNormal, "Query error: " + ODBC_LastErrorString, FunctionTrace, query);
                     continue;
                 }
                 else { return callResult; }
@@ -394,7 +396,10 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                 // so we can refer to data directly by row and col
                 queryResult = queryRetrieveRows(query, allRows);
                 if(queryResult < 0) {
-                    working = handleErrorRetry(ODBC_LastErrorCode
+                    working = handleErrorRetry(
+                        ODBC_LastErrorCode
+                        , ODBC_LastErrorNativeCode
+                        , ODBC_LastErrorMessage 
                         , ErrorNormal
                         , "Query error: " + ODBC_LastErrorString
                         , FunctionTrace
@@ -493,6 +498,11 @@ bool DataWriter::checkSafe() {
 
 template<typename T>
 bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, string funcTrace="", string params="", bool printToFile=false) {
+    return handleErrorRetry(errorCode, -1, "", errorLevel, message, funcTrace, params, printToFile);
+}
+
+template<typename T>
+bool DataWriter::handleErrorRetry(T errorCode, int nativeErrorCode, string dbErrorMessage, int errorLevel, string message, string funcTrace="", string params="", bool printToFile=false) {
     int sleepInterval = 0; 
     int numErrorCode = typename(errorCode) == "int" || typename(errorCode) == "long" ? errorCode : -1;
         // PSQL returns string error codes
@@ -505,6 +515,7 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
             if(blockingError) { return false; }
             
             if(strErrorCode == "" || strErrorCode == "1" // blank error code and message might mean a null pointer, meaning no connection
+                || (strErrorCode == "HY000" && nativeErrorCode == 1) // && StringFind(dbErrorMessage, "no connection to the server") > -1
                 || strErrorCode == "10061" // ECONNREFUSED
                 || strErrorCode == "10053" // SOCECONNABORTED
                 || strErrorCode == "10054" // ECONNRESET
@@ -517,6 +528,8 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
                 || strErrorCode == "08004" // sqlserver_rejected_establishment_of_sqlconnection
                 || strErrorCode == "08007" // transaction_resolution_unknown
                 || strErrorCode == "08P01" // protocol_violation
+                || StringFind(dbErrorMessage, "no connection to the server") > -1 // if using a foreign install, can this be in a localized language? todo: handle
+                || StringFind(dbErrorMessage, "server closed the connection unexpectedly") > -1 // if using a foreign install, can this be in a localized language? todo: handle
             ) {
                 return checkConnection(true, true);
             } else { return false; }
