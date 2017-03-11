@@ -25,12 +25,12 @@ class DataWriterManager {
     bool queryRetrieveRows(string query, string &result[][], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
     
     template<typename T>
-    bool queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1);
     template<typename T>
-    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
+    bool queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1);
 
-    bool scriptRunByIndex(int index, string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1);
-    bool scriptRun(string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, bool doAll = false);
+    bool scriptRunByIndex(int index, string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1);
+    bool scriptRun(string &scriptSrc[], DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1, bool doAll = false);
     
 //    bool scriptRetrieveRowsByIndex();
 //    bool scriptRetrieveRows();
@@ -135,21 +135,23 @@ bool DataWriterManager::queryRetrieveRows(string query, string &result[][], Data
 }
 
 template<typename T>
-bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+bool DataWriterManager::queryRetrieveOneByIndex(int index, string query, T &result, bool &skipped, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1) {
     if(forDbType > -1 && forDbType != dWriters[index].dbType) { skipped = true; return false; }
     if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { skipped = true; return false; }
+    if(forDbType == DW_Odbc && forDbSubType != dWriters[index].dbSubType) { skipped = true; return false; }
+    
     skipped = false;
     
     return dWriters[index].queryRetrieveOne(query, result, rowIndex);
 }
 
 template<typename T>
-bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1) {
+bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, int colIndex = 0*/, DataWriterType forDbType = -1, DataWriterType ignoreDbType = -1, DataWriterType forDbSubType = -1) {
     int dWritersLength = ArraySize(dWriters);
     
     bool callResult; T queryResult; bool skipped;
     for(int i = 0; i < dWritersLength; i++) {
-        callResult = queryRetrieveOneByIndex(i, query, queryResult, skipped, rowIndex, forDbType, ignoreDbType);
+        callResult = queryRetrieveOneByIndex(i, query, queryResult, skipped, rowIndex, forDbType, ignoreDbType, forDbSubType);
         if(callResult) { 
             result = queryResult; 
             return true; 
@@ -159,9 +161,10 @@ bool DataWriterManager::queryRetrieveOne(string query, T &result, int rowIndex =
     return false;
 }
 
-bool DataWriterManager::scriptRunByIndex(int index,string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1) {
+bool DataWriterManager::scriptRunByIndex(int index,string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1, DataWriterType forDbSubType=-1) {
     if(forDbType > -1 && forDbType != dWriters[index].dbType) { return false; }
     if(ignoreDbType > -1 && ignoreDbType == dWriters[index].dbType) { return false; }
+    if(forDbType == DW_Odbc && forDbSubType != dWriters[index].dbSubType) { return false; }
     
     int scriptLines = ArraySize(scriptSrc);
     string query = ""; string subclause = ""; bool finalResult = false;
@@ -180,12 +183,12 @@ bool DataWriterManager::scriptRunByIndex(int index,string &scriptSrc[],DataWrite
     return finalResult;
 }
 
-bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1,bool doAll=false) {
+bool DataWriterManager::scriptRun(string &scriptSrc[],DataWriterType forDbType=-1,DataWriterType ignoreDbType=-1, DataWriterType forDbSubType=-1, bool doAll=false) {
     int dWritersLength = ArraySize(dWriters);
     
     bool callResult; bool finalResult;
     for(int i = 0; i < dWritersLength; i++) {
-        callResult = scriptRunByIndex(i, scriptSrc, forDbType, ignoreDbType);
+        callResult = scriptRunByIndex(i, scriptSrc, forDbType, ignoreDbType, forDbSubType);
         if(callResult) { finalResult = true; }
         if(!doAll && finalResult) { return true; }
     }

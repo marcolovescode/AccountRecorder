@@ -14,6 +14,7 @@
 #include "depends/SQLite3MQL4/SQLite3Base.mqh"
 #include "depends/mql4-mysql.mqh"
 #include "depends/mql4-postgresql.mqh"
+#include "depends/mql4-odbc.mqh"
 
 const int MysqlDefaultPort = 3306;
 
@@ -26,17 +27,20 @@ enum DataWriterFunc {
 };
 
 enum DataWriterType {
-    DW_None,
-    DW_Text,
-    DW_Csv,
-    DW_Sqlite,
-    DW_Postgres,
-    DW_Mysql
+    DW_Undefined = -1,
+    DW_None = 0,
+    DW_Text = 1,
+    DW_Csv = 2,
+    DW_Sqlite = 3,
+    DW_Postgres = 4,
+    DW_Mysql = 5,
+    DW_Odbc = 6
 };
 
 class DataWriter {
     public:
     DataWriterType dbType;
+    DataWriterType dbSubType; // for ODBC
     bool blockingError;
     
     DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int connectRetryDelaySecs=1, string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1);
@@ -61,6 +65,9 @@ class DataWriter {
     CSQLite3Base *sqlite;
     
     int dbConnectId; // mysql, postgres
+    int envHandle; //odbc
+    int dbcHandle; // odbc
+    int stmtHandle; // odbc
     
     string dbUser;
     string dbPass;
@@ -70,7 +77,7 @@ class DataWriter {
     int dbSocket;
     int dbClient;
     
-    string dbConnectString;
+    string dbConnectString; // odbc
     
     string filePath; // sqlite, text
     int fileHandle; // text
@@ -92,7 +99,7 @@ void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int
     connectRetryDelaySecs = connectRetryDelaySecsIn;
     blockingError = false;
     
-    sqlite = new CSQLite3Base();
+    if(dbType == DW_Sqlite) { sqlite = new CSQLite3Base(); }
     
     if(StringLen(param) > 0) { 
         setParams(param, param2, param3, param4, param5, param6, param7);
@@ -107,6 +114,11 @@ void DataWriter::~DataWriter() {
 
 void DataWriter::setParams(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
     switch(dbType) {
+        case DW_Odbc:
+            dbConnectString = param;
+            dbSubType = (DataWriterType)StringToInteger(param2);
+            break;
+            
         case DW_Sqlite:
             filePath = param;
             break;
@@ -174,6 +186,14 @@ bool DataWriter::reconnect(bool attempt = true) {
 bool DataWriter::connect() {
     bool bResult; int iResult;
     switch(dbType) {
+        case DW_Odbc:
+            bResult = ODBC_Init(envHandle, dbcHandle, stmtHandle, dbConnectString, false);
+            if(!bResult) {
+                Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorString, FunctionTrace); 
+                return false; 
+            }
+            else { return true; }
+            
         case DW_Sqlite: // param = file path
             iResult = sqlite.Connect(filePath);
             if(iResult != SQLITE_OK) {
@@ -217,6 +237,10 @@ bool DataWriter::connect() {
 
 void DataWriter::disconnect() {
     switch(dbType) {
+        case DW_Odbc:
+            ODBC_Deinit(envHandle, dbcHandle, stmtHandle);
+            break;
+            
         case DW_Sqlite:
             sqlite.Disconnect();
             break;
@@ -244,6 +268,13 @@ void DataWriter::disconnect() {
 
 bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = true) {
     switch(dbType) {
+        case DW_Odbc:
+            if(!ODBC_IsConnected(dbcHandle)) {
+                if(doReconnect) {
+                    Error::ThrowError(ErrorNormal, "ODBC: Connection is bad, reconnecting...", FunctionTrace);
+                    return reconnect(doAttempts); 
+                } else { return false; }
+            } else { return true; }
         case DW_Sqlite:
             if(!sqlite.IsConnected()) {
                 if(doReconnect) {
@@ -294,6 +325,13 @@ bool DataWriter::queryRun(string dataInput) {
     for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
         working = false;
         switch(dbType) {
+            case DW_Odbc:
+                bResult = ODBC_Query(dbcHandle, stmtHandle, dataInput);
+                if(!bResult) {
+                    working = handleErrorRetry(ODBC_LastErrorCode, ErrorNormal, "ODBC query failed: " + ODBC_LastErrorString, FunctionTrace, dataInput); 
+                    continue;
+                } else { return true; }
+                
             case DW_Sqlite: // param = file path
                 result = sqlite.Exec(dataInput); // extra "" fixes mt4 build 640 dll param corruption
                 if (result != SQLITE_OK && result != SQLITE_ROW && result != SQLITE_DONE) { 
@@ -363,6 +401,14 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
     for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
         working = false;
         switch(dbType) {
+            case DW_Odbc:
+                callResult = ODBC_FetchArray(dbcHandle, stmtHandle, query, result);
+                if(callResult < 0) { 
+                    working = handleErrorRetry(ODBC_LastErrorCode, ErrorNormal, "Query error: " + ODBC_LastErrorString, FunctionTrace, query);
+                    continue;
+                }
+                else { return callResult; }
+                
             case DW_Sqlite: {
                 CSQLite3Table tbl;
                 callResult = sqlite.Query(tbl, query);
@@ -474,13 +520,14 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
             
             case DW_Mysql:
             case DW_Postgres:
+            case DW_Odbc:
                 // todo: would be nice to copy these methods from the helper libraries directly
                 // so we can refer to data directly by row and col
                 queryResult = queryRetrieveRows(query, allRows);
                 if(queryResult < 0) {
-                    working = handleErrorRetry(PSQL_LastErrorCode
+                    working = handleErrorRetry(dbType == DW_Odbc ? ODBC_LastErrorCode : PSQL_LastErrorCode
                         , ErrorNormal
-                        , "Query error: " + dbType==DW_Mysql?""/*MySQL_LastError(dbConnectId)*/:PSQL_LastErrorString
+                        , "Query error: " + dbType==DW_Odbc ? ODBC_LastErrorString : dbType==DW_Mysql?""/*MySQL_LastError(dbConnectId)*/:PSQL_LastErrorString
                         , FunctionTrace
                         , query
                         );
@@ -574,6 +621,7 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
         //    Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
         //    break;
 
+        case DW_Odbc:
         case DW_Postgres:
             Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
             

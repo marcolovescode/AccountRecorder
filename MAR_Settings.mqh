@@ -12,7 +12,7 @@ input bool LogAllErrorsToTerminal = true; // LogAllErrorsToTerminal
 input bool LogAllErrorsToFile = false; // LogAllErrorsToFile
 input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
 input string TimingOptions = "-------------------- Timing --------------------";
-input int DelayedEntrySeconds = 10;
+input int DelayedEntrySeconds = 5;
 input int OrderRefreshSeconds = 60;
 input int EquityRefreshSeconds = 300;
 //input bool SkipIfDisconnected = true;
@@ -36,34 +36,17 @@ bool UseAllWriters = true; // The way fallback mode works, if the primary DB fai
 input int ConnectRetries = 5;
 input int ConnectRetryDelaySecs = 1;
 
-//input bool EnableMysql = false;
-//input string MyHost = "";
-//input string MyUser = "";
-//input string MyPass = "";
-//input string MyOrderDbName = "";
-//input int MyPort = 3306;
-//input int MySocket = 0;
-//input int MyClientFlags = 0;
+input bool EnableOdbc = true; // EnableOdbc: Primary database connection
+input string OdbcConnectString = "DSN=PostgreSQL30";
+input int OdbcDbType = 4; // OdbcDbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
-bool EnableMysql = false;
-string MyHost = "";
-string MyUser = "";
-string MyPass = "";
-string MyOrderDbName = "";
-int MyPort = 3306;
-int MySocket = 0;
-int MyClientFlags = 0;
+input bool EnableOdbc2 = true; // EnableOdbc2: Backup database connection
+input string Odbc2ConnectString = "DSN=SqliteOdbcTest"; 
+input int Odbc2DbType = 3; // Odbc2DbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
-input bool EnablePostgres = true;
-input string PgConnectOrderString = "hostaddr=127.0.0.1 port=9122 dbname=forextest user=mt4 password=U?G~.e?Mc25xZgsJ7b$/`P|it9h4CwwW connect_timeout=5";
+/*input*/ bool EnablePostgres = false;
+/*input*/ string PgConnectOrderString = "";
 
-input bool EnableSqlite = false;
-//input bool SlForceFreeMem = false; // Force memory freeing: Enable if MT4 uses excessive RAM and does not free it under pressure.
+input bool EnableSqlite = false; // EnableSqlite: Use internal SQLite DLL instead of ODBC. Is less stable; ODBC is recommended. Needs sqlite3.dll in MQL4/Libraries
 bool SlForceFreeMem = true; // appears to be necessary -- sqlite fails and reports out of memory if MT4's garbage collection frees too much mem.
 input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
-
-//input bool EnableSqlText = false;
-//input string TxOrderDbPath = "";
-
-bool EnableSqlText = false;
-string TxOrderDbPath = "";

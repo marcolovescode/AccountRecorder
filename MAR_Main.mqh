@@ -86,6 +86,14 @@ bool MainAccountRecorder::setupConnections() {
     //        MyHost, MyUser, MyPass, MyOrderDbName, MyPort, MySocket, MyClientFlags);
     //}
     
+    if(EnableOdbc) {
+        dWriterMan.addDataWriter(DW_Odbc, ConnectRetries, ConnectRetryDelaySecs, OdbcConnectString, OdbcDbType);
+    }
+    
+    if(EnableOdbc2) {
+        dWriterMan.addDataWriter(DW_Odbc, ConnectRetries, ConnectRetryDelaySecs, Odbc2ConnectString, Odbc2DbType);
+    }
+    
     if(EnablePostgres) {
         dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, PgConnectOrderString);
     }
@@ -142,16 +150,56 @@ bool MainAccountRecorder::setupSchema() {
 
     // todo: ordering and modes for DB types
 
-    //if(EnableMysql && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Mysql.sql", scriptSrc)) {
-    //    dWriterMan.scriptRun(scriptSrc, DW_Mysql, -1, UseAllWriters);
-    //}
-
-    if(EnablePostgres && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Postgres.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Postgres, -1, true);
+    string resourcePath[]; DataWriterType dbType[]; DataWriterType dbSubType[];
+    
+    if(EnableOdbc) {
+        switch(OdbcDbType) {
+            case DW_Postgres:
+                Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Postgres.sql");
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(dbSubType, DW_Postgres);
+                break;
+                
+            case DW_Sqlite:
+                Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Sqlite.sql");
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(dbSubType, DW_Sqlite);
+                break;
+        }
+    }
+    
+    if(EnableOdbc2) {
+        switch(Odbc2DbType) {
+            case DW_Postgres:
+                Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Postgres.sql");
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(dbSubType, DW_Postgres);
+                break;
+                
+            case DW_Sqlite:
+                Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Sqlite.sql");
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(dbSubType, DW_Sqlite);
+                break;
+        }
+    }
+    
+    if(EnablePostgres) {
+        Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Postgres.sql");
+        Common::ArrayPush(dbType, DW_Postgres);
+        Common::ArrayPush(dbSubType, (DataWriterType)(-1));
+    }
+    
+    if(EnableSqlite) {
+        Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Sqlite.sql");
+        Common::ArrayPush(dbType, DW_Sqlite);
+        Common::ArrayPush(dbSubType, (DataWriterType)(-1));
     }
 
-    if(EnableSqlite && ResourceMan.getTextResource("MAR_Scripts/Schema_Orders_Sqlite.sql", scriptSrc)) {
-        dWriterMan.scriptRun(scriptSrc, DW_Sqlite, -1, true);
+    for(int i = 0; i < ArraySize(resourcePath); i++) {
+        if(ResourceMan.getTextResource(resourcePath[i], scriptSrc)) {
+            dWriterMan.scriptRun(scriptSrc, dbType[i], -1, dbSubType[i], true);
+        }
     }
     
     checkSchema();
@@ -166,39 +214,70 @@ bool MainAccountRecorder::checkSchema() {
     
     // todo: handle schema readiness separately for pgsql and sqlite
     
-    if(EnablePostgres) {
-        if(!dWriterMan.queryRetrieveOne(
-            "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');"
-            , tableCount
-            , 0
-            , DW_Postgres
-            )
-        ) {
-            Error::ThrowError(ErrorNormal, "PgSQL: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
-        } else {
-            schemaReady = (tableCount == expectedTableCount);
-            
-            if(!schemaReady) {
-                Error::ThrowError(ErrorNormal, "PgSQL Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
-                return false;
-            }
+    string postgresQuery = "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');";
+    string sqliteQuery = "select count(type) from sqlite_master where sqlite_master.type = 'table' and sqlite_master.name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');";
+    
+    string query[]; DataWriterType dbType[]; DataWriterType subDbType[];
+    if(EnableOdbc) {
+        switch(OdbcDbType) {
+            case DW_Postgres:
+                Common::ArrayPush(query, postgresQuery);
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(subDbType, DW_Postgres);
+                break;
+                
+            case DW_Sqlite:
+                Common::ArrayPush(query, sqliteQuery);
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(subDbType, DW_Sqlite);
+                break;
         }
     }
     
+    if(EnableOdbc2) {
+        switch(Odbc2DbType) {
+            case DW_Postgres:
+                Common::ArrayPush(query, postgresQuery);
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(subDbType, DW_Postgres);
+                break;
+                
+            case DW_Sqlite:
+                Common::ArrayPush(query, sqliteQuery);
+                Common::ArrayPush(dbType, DW_Odbc);
+                Common::ArrayPush(subDbType, DW_Sqlite);
+                break;
+        }
+    }
+    
+    if(EnablePostgres) {
+        Common::ArrayPush(query, postgresQuery);
+        Common::ArrayPush(dbType, DW_Postgres);
+        Common::ArrayPush(subDbType, (DataWriterType)(-1));
+    }
+    
     if(EnableSqlite) {
+        Common::ArrayPush(query, sqliteQuery);
+        Common::ArrayPush(dbType, DW_Sqlite);
+        Common::ArrayPush(subDbType, (DataWriterType)(-1));
+    }
+    
+    for(int i = 0; i < ArraySize(query); i++) {
         if(!dWriterMan.queryRetrieveOne(
-            "select count(type) from sqlite_master where sqlite_master.type = 'table' and sqlite_master.name in ('accounts', 'act_equity', 'currency', 'elections', 'enum_act_margin_so_mode', 'enum_act_mode', 'enum_exn_type', 'enum_spt_phase', 'enum_spt_subtype', 'enum_spt_type', 'enum_txn_type', 'splits', 'transactions', 'txn_orders', 'txn_orders_equity', 'txn_orders_exit');"
+            query[i]
             , tableCount
             , 0
-            , DW_Sqlite
+            , dbType[i]
+            , -1
+            , subDbType[i]
             )
         ) {
-            Error::ThrowError(ErrorNormal, "SQLite: Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, EnumToString(dbType[i]) + (subDbType[i] > -1 ? EnumToString(subDbType[i]) : "") + ": Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
         } else {
             schemaReady = (tableCount == expectedTableCount);
             
             if(!schemaReady) {
-                Error::ThrowError(ErrorNormal, "SQLite Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
+                Error::ThrowError(ErrorNormal, EnumToString(dbType[i]) + (subDbType[i] > -1 ? EnumToString(subDbType[i]) : "") + " Schema error: Table count " + tableCount + " does not match expected " + expectedTableCount, FunctionTrace);
                 return false;
             }
         }
