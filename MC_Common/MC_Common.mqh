@@ -69,6 +69,10 @@ class Common {
     static bool IsInvalidPointer(T *pointer);
     
     static double PriceToPips(double price, string symbol);
+    
+#ifdef __MQL5__
+    static double GetSingleValueFromBuffer(int indiHandle, int shift=0, int bufferNum=0);
+#endif
 };
 
 // https://github.com/dingmaotu/mql4-lib
@@ -107,7 +111,7 @@ int Common::ArrayPush(T &array[], T unit, int maxSize = -1) {
         // is to temporarily set to non-series, resize and add, then set back to series.
         // Theory: https://www.forexfactory.com/showthread.php?p=2878455#post2878455
         // Workaround: https://www.forexfactory.com/showthread.php?p=4686709#post4686709
-    
+
     if(maxSize > 0 && target >= maxSize) {
         int maxDiff = target-maxSize+1;
         ArrayDelete(array, 0, maxDiff, false);
@@ -417,3 +421,17 @@ double Common::PriceToPips(double price, string symbol) {
         // digits % 2 = 0 means even, 1 means odd
         // TODO: How about 6 digit brokers? And do they quote JPY in 4 digits, too?
 }
+
+#ifdef __MQL5__
+double Common::GetSingleValueFromBuffer(int indiHandle, int shift=0, int bufferNum=0) {
+    if(indiHandle == INVALID_HANDLE) { return -1; }
+    if(shift < 0) { shift = 0; }
+    if(bufferNum < 0) { bufferNum = 0; }
+    
+    double buffer[1];
+    int result = CopyBuffer(indiHandle, bufferNum, shift, 1, buffer);
+    
+    if(result < 0) { return -1; }
+    else { return buffer[0]; }
+}
+#endif
