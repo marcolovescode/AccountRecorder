@@ -11,12 +11,8 @@
 
 #include "../MC_Common/MC_Common.mqh"
 #include "../MC_Common/MC_Error.mqh"
-#include "depends/SQLite3MQL4/SQLite3Base.mqh"
-#include "depends/mql4-mysql.mqh"
-#include "depends/mql4-postgresql.mqh"
 #include "depends/mql4-odbc.mqh"
-
-const int MysqlDefaultPort = 3306;
+#include "depends/SQLite3MQL4/SQLite3Base.mqh"
 
 enum DataWriterFunc {
     DW_Func_None,
@@ -64,18 +60,9 @@ class DataWriter {
     private:
     CSQLite3Base *sqlite;
     
-    int dbConnectId; // mysql, postgres
     int envHandle; //odbc
     int dbcHandle; // odbc
     int stmtHandle; // odbc
-    
-    string dbUser;
-    string dbPass;
-    string dbName;
-    string dbHost;
-    int dbPort;
-    int dbSocket;
-    int dbClient;
     
     string dbConnectString; // odbc
     
@@ -121,17 +108,6 @@ void DataWriter::setParams(string param="", string param2="", string param3="", 
             
         case DW_Sqlite:
             filePath = param;
-            break;
-            
-        //case DW_Mysql:
-        //    dbHost = param; dbUser = param2; dbPass = param3; dbName = param4; 
-        //    dbPort = param5 < 0 ? MysqlDefaultPort : param5; 
-        //    dbSocket = param6 < 0 ? 0 : param6; 
-        //    dbClient = param7 < 0 ? 0 : param7;
-        //    break;
-            
-        case DW_Postgres:
-            dbConnectString = param;
             break;
             
         case DW_Text:
@@ -189,7 +165,7 @@ bool DataWriter::connect() {
         case DW_Odbc:
             bResult = ODBC_Init(envHandle, dbcHandle, stmtHandle, dbConnectString, false);
             if(!bResult) {
-                Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorString, FunctionTrace); 
+                Error::ThrowError(ErrorNormal, "ODBC failed init: " + ODBC_LastErrorString, FunctionTrace); 
                 return false; 
             }
             else { return true; }
@@ -202,24 +178,6 @@ bool DataWriter::connect() {
             }
             else { return true; }
 
-//        case DW_Mysql:
-//            bResult = init_MySQL(dbConnectId, dbHost, dbUser, dbPass, dbName, dbPort, dbSocket, dbClient);
-//
-//            if(!bResult) { 
-//                Error::ThrowError(ErrorNormal, "MySQL failed init", FunctionTrace); 
-//                return false; 
-//            } 
-//            else { return true; }
-
-        case DW_Postgres:
-            bResult = PSQL_Init(dbConnectId, dbConnectString);
-
-            if(!bResult) { 
-                Error::ThrowError(ErrorNormal, "PostgresSQL failed init: " + PSQL_LastErrorString, FunctionTrace); 
-                return false; 
-            }
-            else { return true; }
-        
         case DW_Text:
         case DW_Csv:
             fileHandle = FileOpen(filePath, FILE_SHARE_READ|FILE_SHARE_WRITE|(dbType == DW_Csv ? FILE_CSV : FILE_TXT)|FILE_UNICODE, csvSep);
@@ -244,16 +202,6 @@ void DataWriter::disconnect() {
         case DW_Sqlite:
             sqlite.Disconnect();
             break;
-        
-        //case DW_Mysql:
-        //    deinit_MySQL(dbConnectId);
-        //    dbConnectId = 0;
-        //    break;
-
-        case DW_Postgres:
-            PSQL_Deinit(dbConnectId);
-            dbConnectId = 0;
-            break;
 
         case DW_Text:
         case DW_Csv:
@@ -275,6 +223,7 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
                     return reconnect(doAttempts); 
                 } else { return false; }
             } else { return true; }
+            
         case DW_Sqlite:
             if(!sqlite.IsConnected()) {
                 if(doReconnect) {
@@ -283,17 +232,6 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
                 } else { return false; }
             } else { return true; }
             
-        case DW_Postgres: {
-            ConnStatusType status = PQstatus(dbConnectId);
-            if(status == CONNECTION_BAD) {
-                if(doReconnect) { 
-                    Error::ThrowError(ErrorNormal, "PgSQL: Connection is bad, reconnecting...", FunctionTrace);
-                    return reconnect(doAttempts); 
-                }
-                else { return false; }
-            } else { return true; }
-        }
-        
         case DW_Text:
         case DW_Csv:
             if(fileHandle == INVALID_HANDLE) {
@@ -338,23 +276,6 @@ bool DataWriter::queryRun(string dataInput) {
                     working = handleErrorRetry(result, ErrorNormal, "Sqlite expression failed: " + result + " - " + sqlite.ErrorMsg(), FunctionTrace, dataInput); 
                     continue;
                 }
-                else { return true; }
-    
-            //case DW_Mysql:
-            //    bResult = MySQL_Query(dbConnectId, dataInput);
-            //    if (!bResult) { 
-            //        // errorCode = 
-            //        working = handleErrorRetry(errorCode, ErrorNormal, "MySQL query failed", FunctionTrace, dataInput); 
-            //        continue;
-            //    } // MYSQL lib prints error
-            //    else { return true; }
-    
-            case DW_Postgres:
-                bResult = PSQL_Query(dbConnectId, dataInput);
-                if (!bResult) {
-                    working = handleErrorRetry(PSQL_LastErrorCode, ErrorNormal, "Postgres query failed: " + PSQL_LastErrorString, FunctionTrace, dataInput); 
-                    continue;
-                } // PSQL lib prints error
                 else { return true; }
     
             case DW_Text:
@@ -440,23 +361,6 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                 
                 return i;
             }
-            
-            //case DW_Mysql:
-            //    callResult = MySQL_FetchArray(dbConnectId, query, result);
-            //    if(callResult < 0) { 
-            //        // errorCode = 
-            //        working = handleErrorRetry(errorCode, ErrorNormal, "Query error: " + ""/*MySQL_LastError(dbConnectId)*/, FunctionTrace, query);
-            //        continue;
-            //    }
-            //    else { return callResult; }
-                
-            case DW_Postgres:
-                callResult = PSQL_FetchArray(dbConnectId, query, result);
-                if(callResult < 0) { 
-                    working = handleErrorRetry(PSQL_LastErrorCode, ErrorNormal, "Query error: " + PSQL_LastErrorString, FunctionTrace, query);
-                    continue;
-                }
-                else { return callResult; }
                 
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
@@ -485,6 +389,34 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
     for(int attempts = 0; working && (attempts < connectRetries); attempts++) {
         working = false;
         switch(dbType) {
+            case DW_Odbc:
+                // todo: would be nice to copy these methods from the helper libraries directly
+                // so we can refer to data directly by row and col
+                queryResult = queryRetrieveRows(query, allRows);
+                if(queryResult < 0) {
+                    working = handleErrorRetry(ODBC_LastErrorCode
+                        , ErrorNormal
+                        , "Query error: " + ODBC_LastErrorString
+                        , FunctionTrace
+                        , query
+                        );
+                    continue;
+                }
+                else {
+                    int dim1Size = ArrayRange(allRows, 1);
+                    int dim0Size = ArraySize(allRows) / dim1Size;
+                    
+                    if(dim0Size < rowIndex+1/* || dim1Size < colIndex+1*/) { 
+                        // we can't determine colSize valid because we already size the col dimension to the requested index
+                        Error::PrintInfo(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, ErrorForceFile);
+                        return false;
+                    } else {
+                        dbResult = allRows[rowIndex][colIndex];
+                        returnResult = true;
+                        break;
+                    }
+                }
+        
             case DW_Sqlite: {
                 CSQLite3Table tbl;
                 callResult = sqlite.Query(tbl, query);
@@ -515,38 +447,8 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                         break;
                     }
                 }
-            } 
-            break;
-            
-            case DW_Mysql:
-            case DW_Postgres:
-            case DW_Odbc:
-                // todo: would be nice to copy these methods from the helper libraries directly
-                // so we can refer to data directly by row and col
-                queryResult = queryRetrieveRows(query, allRows);
-                if(queryResult < 0) {
-                    working = handleErrorRetry(dbType == DW_Odbc ? ODBC_LastErrorCode : PSQL_LastErrorCode
-                        , ErrorNormal
-                        , "Query error: " + dbType==DW_Odbc ? ODBC_LastErrorString : dbType==DW_Mysql?""/*MySQL_LastError(dbConnectId)*/:PSQL_LastErrorString
-                        , FunctionTrace
-                        , query
-                        );
-                    continue;
-                }
-                else {
-                    int dim1Size = ArrayRange(allRows, 1);
-                    int dim0Size = ArraySize(allRows) / dim1Size;
-                    
-                    if(dim0Size < rowIndex+1/* || dim1Size < colIndex+1*/) { 
-                        // we can't determine colSize valid because we already size the col dimension to the requested index
-                        Error::PrintInfo(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, ErrorForceFile);
-                        return false;
-                    } else {
-                        dbResult = allRows[rowIndex][colIndex];
-                        returnResult = true;
-                        break;
-                    }
-                }
+                break;
+            }
                 
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
@@ -597,32 +499,7 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
     string strErrorCode = typename(errorCode) == "string" ? errorCode : "";  
         
     switch(dbType) {
-        case DW_Sqlite:
-            Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
-            
-            if(blockingError) { return false; }
-            
-            switch(numErrorCode) {
-                // todo: disconnected?
-                case 5: //SQLITE_BUSY
-                case 6: //SQLITE_LOCKED
-                case 10: //SQLITE_IOERR
-                    sleepInterval = (connectRetryDelaySecs*1000)+(500*MathRand()/32767);
-                    Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
-                    Sleep(sleepInterval); // add fuzz up to 500ms
-                    return true;
-                
-                default:
-                    return false;
-            }
-            break;
-
-        //case DW_Mysql:
-        //    Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // MYSQL lib prints error
-        //    break;
-
         case DW_Odbc:
-        case DW_Postgres:
             Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); // PSQL lib prints error
             
             if(blockingError) { return false; }
@@ -643,6 +520,26 @@ bool DataWriter::handleErrorRetry(T errorCode, int errorLevel, string message, s
             ) {
                 return checkConnection(true, true);
             } else { return false; }
+            break;
+            
+        case DW_Sqlite:
+            Error::ThrowError(ErrorNormal, message, funcTrace, params, printToFile); 
+            
+            if(blockingError) { return false; }
+            
+            switch(numErrorCode) {
+                // todo: disconnected?
+                case 5: //SQLITE_BUSY
+                case 6: //SQLITE_LOCKED
+                case 10: //SQLITE_IOERR
+                    sleepInterval = (connectRetryDelaySecs*1000)+(500*MathRand()/32767);
+                    Error::ThrowError(ErrorNormal, "Retrying: " + sleepInterval + " ms", FunctionTrace);
+                    Sleep(sleepInterval); // add fuzz up to 500ms
+                    return true;
+                
+                default:
+                    return false;
+            }
             break;
 
         case DW_Text:

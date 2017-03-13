@@ -94,10 +94,6 @@ bool MainAccountRecorder::setupConnections() {
         dWriterMan.addDataWriter(DW_Odbc, ConnectRetries, ConnectRetryDelaySecs, Odbc2ConnectString, Odbc2DbType);
     }
     
-    if(EnablePostgres) {
-        dWriterMan.addDataWriter(DW_Postgres, ConnectRetries, ConnectRetryDelaySecs, PgConnectOrderString);
-    }
-    
     if(EnableSqlite) {
         dWriterMan.addDataWriter(DW_Sqlite, ConnectRetries, ConnectRetryDelaySecs, SlOrderDbPath);
     }
@@ -184,12 +180,6 @@ bool MainAccountRecorder::setupSchema() {
         }
     }
     
-    if(EnablePostgres) {
-        Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Postgres.sql");
-        Common::ArrayPush(dbType, DW_Postgres);
-        Common::ArrayPush(dbSubType, (DataWriterType)(-1));
-    }
-    
     if(EnableSqlite) {
         Common::ArrayPush(resourcePath, "MAR_Scripts/Schema_Orders_Sqlite.sql");
         Common::ArrayPush(dbType, DW_Sqlite);
@@ -248,12 +238,6 @@ bool MainAccountRecorder::checkSchema() {
                 Common::ArrayPush(subDbType, DW_Sqlite);
                 break;
         }
-    }
-    
-    if(EnablePostgres) {
-        Common::ArrayPush(query, postgresQuery);
-        Common::ArrayPush(dbType, DW_Postgres);
-        Common::ArrayPush(subDbType, (DataWriterType)(-1));
     }
     
     if(EnableSqlite) {

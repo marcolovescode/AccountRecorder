@@ -31,7 +31,6 @@ input int ElectionId = 1;
 input string DatabaseOptions = "---------------- Database Targets --------------";
 input bool EnableOrderRecording = true;
 input bool EnableEquityRecording = true;
-//input bool UseAllWriters = false; // UseAllWriters true, or only use first successful writer
 bool UseAllWriters = true; // The way fallback mode works, if the primary DB fails, then the sub DB's record the complete recordset, making UseAllWriters redundant.
 input int ConnectRetries = 5;
 input int ConnectRetryDelaySecs = 1;
@@ -44,9 +43,6 @@ input bool EnableOdbc2 = true; // EnableOdbc2: Backup database connection
 input string Odbc2ConnectString = "DSN=SqliteOdbcTest"; 
 input int Odbc2DbType = 3; // Odbc2DbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
-/*input*/ bool EnablePostgres = false;
-/*input*/ string PgConnectOrderString = "";
-
-input bool EnableSqlite = false; // EnableSqlite: Use internal SQLite DLL instead of ODBC. Is less stable; ODBC is recommended. Needs sqlite3.dll in MQL4/Libraries
+input bool EnableSqlite = false; // EnableSqlite: Use internal SQLite DLL instead of ODBC. Is less stable; ODBC is recommended. Needs sqlite3.dll in MQL4/Libraries/MD_DataWriter
 bool SlForceFreeMem = true; // appears to be necessary -- sqlite fails and reports out of memory if MT4's garbage collection frees too much mem.
 input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
