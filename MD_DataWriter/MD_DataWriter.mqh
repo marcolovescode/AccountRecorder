@@ -144,7 +144,7 @@ bool DataWriter::reconnect(bool attempt = true) {
     int attemptsMax = !attempt || (connectRetries < 1) ? 1 : connectRetries;
     
     for(int i = 0; i < attemptsMax; i++) {
-        if(i > 0) { Error::PrintInfo(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
+        if(i > 0) { Error::PrintInfo_v02(ErrorNormal, "Reconnecting attempt " + (i+1) + ", DB type: " + dbType, FunctionTrace); }
         
         disconnect();
         bResult = connect();
@@ -300,7 +300,7 @@ bool DataWriter::queryRun(string dataInput) {
                 }
                 
             case DW_Csv:
-                Error::PrintInfo(ErrorInfo, "Skipping CSV file for queryRun, use getCsvHandle and FileWrite", FunctionTrace);
+                Error::PrintInfo_v02(ErrorInfo, "Skipping CSV file for queryRun, use getCsvHandle and FileWrite", FunctionTrace);
                 return false;
             
             default:
@@ -358,7 +358,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                     if(CheckPointer(row) == POINTER_DYNAMIC) { delete(row); }
                 }
                 if(i <= 0 || j <= 0) {
-                    Error::PrintInfo(ErrorMinor, "Query: " + i + " rows, " + j + " columns returned: " + i, FunctionTrace, query, ErrorForceFile);
+                    Error::PrintInfo_v02(ErrorMinor, "Query: " + i + " rows, " + j + " columns returned: " + i, FunctionTrace, query, false, ErrorFile);
                 }
                 
                 return i;
@@ -413,7 +413,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                     
                     if(dim0Size < rowIndex+1/* || dim1Size < colIndex+1*/) { 
                         // we can't determine colSize valid because we already size the col dimension to the requested index
-                        Error::PrintInfo(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, ErrorForceFile);
+                        Error::PrintInfo_v02(ErrorMinor, "Query did not return enough rows: ", FunctionTrace, query, false, ErrorFile);
                         return false;
                     } else {
                         dbResult = allRows[rowIndex][colIndex];
@@ -474,7 +474,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
             
             return true;
         } else {
-            Error::PrintInfo(ErrorMinor, "Query did not return data: ", FunctionTrace, query, ErrorForceFile);
+            Error::PrintInfo_v02(ErrorMinor, "Query did not return data: ", FunctionTrace, query, false, ErrorFile);
             return false; 
         }
     }

@@ -8,12 +8,35 @@
 #property strict
 
 enum StringType {
+    Type_Empty,
     Type_Alphanumeric,
     Type_Uppercase,
     Type_Lowercase,
     Type_Alpha,
     Type_Numeric,
     Type_Symbol
+};
+
+class TimePoint {
+    public:
+    uint milliseconds;
+    datetime dateTime;
+    uint cycles;
+    TimePoint(uint millisecondsIn = 0, datetime dateTimeIn = 0, uint cyclesIn = 0) { 
+        update(millisecondsIn, dateTimeIn, cyclesIn);
+    }
+    
+    void update (uint millisecondsIn = 0, datetime dateTimeIn = 0, uint cyclesIn = 0) { 
+        milliseconds = millisecondsIn > 0 ? millisecondsIn : GetTickCount(); 
+        dateTime = dateTimeIn > 0 ? dateTimeIn : TimeCurrent(); 
+        cycles = cyclesIn; 
+    }
+};
+
+template<typename T>
+class ArrayDim {
+    public:
+    T _[];
 };
 
 string StringZeroArray[1];
@@ -52,12 +75,18 @@ class Common {
     
     static bool IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHour, int endDayOfWeek, int endHour);
     
+    template<typename T>
+    static int GetTimeDuration(T cur, T prev);
+    
     static string GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/);
     
     static bool EventSetTimerReliable(int seconds);
     static bool EventSetMillisecondTimerReliable(int milliseconds);
     
     static string GetRandomFileName(string prefix = "Log_", string ext = ".txt");
+    
+    template<typename T>
+    static void SafeDeletePointerArray(T &array[]);
     
     template<typename T>
     static void SafeDelete(T *pointer);
@@ -70,8 +99,18 @@ class Common {
     
     static double PriceToPips(double price, string symbol);
     
+    static bool OrderIsLong(int opType);
+    static bool OrderIsShort(int opType);
+    static bool OrderIsPending(int opType);
+    static bool OrderIsMarket(int opType);
+    
+    static datetime StripDateFromDatetime(datetime target);
+    static datetime StripTimeFromDatetime(datetime target);
+    
 #ifdef __MQL5__
     static double GetSingleValueFromBuffer(int indiHandle, int shift=0, int bufferNum=0);
+    static bool IsAccountHedging();
+    static bool IsOrderRetcodeSuccess(int retcode, bool checkNoChange = true);
 #endif
 };
 
@@ -102,6 +141,7 @@ void Common::ArrayDelete(T &array[],int index, int diff=1, bool resize=true) {
 template<typename T>
 int Common::ArrayPush(T &array[], T unit, int maxSize = -1) {
     int size = ArraySize(array);
+    if(!ArrayIsDynamic(array)) { return size; }
     int target = size; //int target = (isSeries ? 0 : size);
     bool isSeries = ArrayGetAsSeries(array);
     
@@ -112,13 +152,14 @@ int Common::ArrayPush(T &array[], T unit, int maxSize = -1) {
         // Theory: https://www.forexfactory.com/showthread.php?p=2878455#post2878455
         // Workaround: https://www.forexfactory.com/showthread.php?p=4686709#post4686709
 
+    int callResult = -1;
     if(maxSize > 0 && target >= maxSize) {
         int maxDiff = target-maxSize+1;
         ArrayDelete(array, 0, maxDiff, false);
         ArrayResize(array, maxSize);
         target = maxSize-1;
     } else {
-        ArrayResize(array, size+1);
+        callResult = ArrayResize(array, size+1);
     }
     
     array[target] = unit;
@@ -130,7 +171,7 @@ int Common::ArrayPush(T &array[], T unit, int maxSize = -1) {
 
 template<typename T>
 int Common::ArrayReserve(T &array[], int reserveSize) {
-    int size;
+    int size = -1;
     
     size = ArraySize(array);
     ArrayResize(array, size, reserveSize);
@@ -139,9 +180,10 @@ int Common::ArrayReserve(T &array[], int reserveSize) {
 }
 
 int Common::ArrayTsearch(string &array[], string value, int count=-1, int start=0, int direction=MODE_ASCEND, bool caseSensitive=true) {
-    if(count < 0) { count = ArraySize(array); }
+    if(count < 0) { count = ArraySize(array)-start; }
+    if(start >= ArraySize(array)) { return -1; }
     
-    for(int i = start; i < count; i++) {
+    for(int i = start; i < start+count; i++) {
         if(StringCompare(array[i], value, caseSensitive) == 0) { return i; }
     }
 
@@ -181,6 +223,7 @@ bool Common::IsAddrAbcValid (string addrAbc) {
 
 int Common::AddrAbcToInt(string addrAbc, bool zeroBased=true) {
     // http://stackoverflow.com/questions/9905533/convert-excel-column-alphabet-e-g-aa-to-number-e-g-25
+    if(GetStringType(addrAbc) == Type_Numeric) { return StringToInteger(addrAbc); }
     
     StringToLower(addrAbc);
     int addrAbcLength = StringLen(addrAbc);
@@ -202,7 +245,7 @@ string Common::AddrIntToAbc(int addrInt, bool zeroBased=true) {
 
     int dividend = addrInt + (int)zeroBased; // make 0 based, not 1 based
     string columnName ="";
-    int modulo;
+    int modulo = 0;
 
     while (dividend > 0)
     {
@@ -226,9 +269,12 @@ string Common::ConcatStringFromArray(string& strArray[], string delimiter = ";")
 }
 
 StringType Common::GetStringType(string test) {
+    test = StringTrim(test);
     int len = StringLen(test);
+    if(len <= 0) { return Type_Empty; }
+    
     bool uppercase = false; bool lowercase = false; bool numeric = false;
-    ushort code;
+    ushort code = 0;
     
     for(int i= 0; i < len; i++) {
         code = StringGetCharacter(test, i);
@@ -271,7 +317,7 @@ string Common::GetUuid()
    string alphabet_x="0123456789abcdef";
    string alphabet_y="89ab";
    string id="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"; // 36 char = (8-4-4-4-12)
-   ushort character;
+   ushort character = 0;
    for(int i=0; i<36; i++)
      {
       if(i==8 || i==13 || i==18 || i==23)
@@ -308,6 +354,18 @@ bool Common::IsDatetimeInRange(datetime subject, int startDayOfWeek, int startHo
         : currentDayOfWeek == endDayOfWeek ? currentHour < endHour
         : currentDayOfWeek > startDayOfWeek && currentDayOfWeek < fixedEndDayOfWeek
         ;
+}
+
+template<typename T>
+int Common::GetTimeDuration(T cur, T prev) {
+    // todo: long and ulong handling?
+    if(typename(T) == "int" || typename(T) == "datetime") {
+        return (cur >= prev) ? cur-prev : INT_MAX-prev+cur+1;
+    } else if(typename(T) == "uint") {
+        return (cur >= prev) ? cur-prev : UINT_MAX-prev+cur+1;
+    } else {
+        return -1;
+    }
 }
 
 string Common::GetSqlDatetime(datetime source, bool appendTimeOffset=false, string timeOffset=""/*, bool calcBrokerOffset=false*/) {
@@ -375,6 +433,15 @@ string Common::GetRandomFileName(string prefix = "Log_", string ext = ".txt") {
     return prefix + (int)TimeLocal() + "_" + (int)GetMicrosecondCount() + ext;
 }
 
+template<typename T>
+void Common::SafeDeletePointerArray(T &array[]) {
+    int size = ArraySize(array);
+    
+    for(int i = 0; i < size; i++) {
+        Common::SafeDelete(array[i]);
+    }
+}
+
 //+------------------------------------------------------------------+
 // https://github.com/dingmaotu/mql4-lib
 //+------------------------------------------------------------------+
@@ -433,5 +500,113 @@ double Common::GetSingleValueFromBuffer(int indiHandle, int shift=0, int bufferN
     
     if(result < 0) { return -1; }
     else { return buffer[0]; }
+}
+#endif
+
+bool Common::OrderIsLong(int opType) {
+    switch(opType) {
+#ifdef __MQL4__
+        case OP_BUY:
+        case OP_BUYLIMIT:
+        case OP_BUYSTOP:
+#else
+#ifdef __MQL5__
+        case ORDER_TYPE_BUY:
+        case ORDER_TYPE_BUY_LIMIT:
+        case ORDER_TYPE_BUY_STOP:
+        case ORDER_TYPE_BUY_STOP_LIMIT:
+#endif
+#endif
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool Common::OrderIsShort(int opType) {
+    switch(opType) {
+#ifdef __MQL4__
+        case OP_SELL:
+        case OP_SELLLIMIT:
+        case OP_SELLSTOP:
+#else
+#ifdef __MQL5__
+        case ORDER_TYPE_SELL:
+        case ORDER_TYPE_SELL_LIMIT:
+        case ORDER_TYPE_SELL_STOP:
+        case ORDER_TYPE_SELL_STOP_LIMIT:
+#endif
+#endif
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool Common::OrderIsPending(int opType) {
+    switch(opType) {
+#ifdef __MQL4__
+        case OP_BUYLIMIT:
+        case OP_BUYSTOP:
+        case OP_SELLLIMIT:
+        case OP_SELLSTOP:
+#else
+#ifdef __MQL5__
+        case ORDER_TYPE_BUY_LIMIT:
+        case ORDER_TYPE_BUY_STOP:
+        case ORDER_TYPE_BUY_STOP_LIMIT:
+        case ORDER_TYPE_SELL_LIMIT:
+        case ORDER_TYPE_SELL_STOP:
+        case ORDER_TYPE_SELL_STOP_LIMIT:
+#endif
+#endif
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool Common::OrderIsMarket(int opType) {
+    switch(opType) {
+#ifdef __MQL4__
+        case OP_BUY:
+        case OP_SELL:
+#else
+#ifdef __MQL5__
+        case ORDER_TYPE_BUY:
+        case ORDER_TYPE_SELL:
+#endif
+#endif
+            return true;
+        default:
+            return false;
+    }
+}
+
+datetime Common::StripDateFromDatetime(datetime target) {
+    if(target >= 86400) {
+        return target - (86400*MathFloor(target/86400));
+    } else { return target; }
+}
+
+datetime Common::StripTimeFromDatetime(datetime target) {
+    if(target < 86400) {
+        // return today's date?
+        return 0; // jan 1 1970
+    } else {
+        return 86400*MathFloor(target/86400);
+    }
+}
+
+#ifdef __MQL5__
+bool Common::IsAccountHedging() {
+    return AccountInfoInteger(ACCOUNT_MARGIN_MODE) == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING;
+}
+
+bool Common::IsOrderRetcodeSuccess(int retcode, bool checkNoChange = true) {
+    return (
+        (retcode >= TRADE_RETCODE_PLACED && retcode <= TRADE_RETCODE_DONE_PARTIAL) 
+        || (!checkNoChange || retcode == TRADE_RETCODE_NO_CHANGES)
+    );
 }
 #endif

@@ -9,13 +9,15 @@
 
 #ifdef __MQL5__
 
-//--- Declaration of constants
-#define OP_BUY 0           //Buy 
-#define OP_SELL 1          //Sell 
-#define OP_BUYLIMIT 2      //Pending order of BUY LIMIT type 
-#define OP_SELLLIMIT 3     //Pending order of SELL LIMIT type 
-#define OP_BUYSTOP 4       //Pending order of BUY STOP type 
-#define OP_SELLSTOP 5      //Pending order of SELL STOP type 
+//+------------------------------------------------------------------+
+//| Constants
+
+//#define OP_BUY 0           //Buy 
+//#define OP_SELL 1          //Sell 
+//#define OP_BUYLIMIT 2      //Pending order of BUY LIMIT type 
+//#define OP_SELLLIMIT 3     //Pending order of SELL LIMIT type 
+//#define OP_BUYSTOP 4       //Pending order of BUY STOP type 
+//#define OP_SELLSTOP 5      //Pending order of SELL STOP type 
 //---
 #define MODE_OPEN 0
 #define MODE_CLOSE 3
@@ -67,12 +69,55 @@
 //---
 #define EMPTY -1
 
-int TimeDayOfWeek(datetime date)
+ENUM_TIMEFRAMES GetMql5TimeFrame(int tf)
   {
-   MqlDateTime tm;
-   TimeToStruct(date,tm);
-   return(tm.day_of_week);
+   switch(tf)
+     {
+      case 0: return(PERIOD_CURRENT);
+      case 1: return(PERIOD_M1);
+      case 5: return(PERIOD_M5);
+      case 15: return(PERIOD_M15);
+      case 30: return(PERIOD_M30);
+      case 60: return(PERIOD_H1);
+      case 240: return(PERIOD_H4);
+      case 1440: return(PERIOD_D1);
+      case 10080: return(PERIOD_W1);
+      case 43200: return(PERIOD_MN1);
+      
+      case 2: return(PERIOD_M2);
+      case 3: return(PERIOD_M3);
+      case 4: return(PERIOD_M4);      
+      case 6: return(PERIOD_M6);
+      case 10: return(PERIOD_M10);
+      case 12: return(PERIOD_M12);
+      case 16385: return(PERIOD_H1);
+      case 16386: return(PERIOD_H2);
+      case 16387: return(PERIOD_H3);
+      case 16388: return(PERIOD_H4);
+      case 16390: return(PERIOD_H6);
+      case 16392: return(PERIOD_H8);
+      case 16396: return(PERIOD_H12);
+      case 16408: return(PERIOD_D1);
+      case 32769: return(PERIOD_W1);
+      case 49153: return(PERIOD_MN1);      
+      default: return(PERIOD_CURRENT);
+     }
   }
+
+//+------------------------------------------------------------------+
+//| Time
+
+int TimeDayOfWeek(datetime date) {
+    MqlDateTime tm;
+    TimeToStruct(date, tm);
+    return tm.day_of_week;
+}
+
+int DayOfWeek() {
+    MqlDateTime tm;
+    TimeCurrent(tm);
+    return(tm.day_of_week);
+}
   
 int TimeHour(datetime date)
   {
@@ -80,7 +125,15 @@ int TimeHour(datetime date)
    TimeToStruct(date,tm);
    return(tm.hour);
   }
+
+//+------------------------------------------------------------------+
+//| Market Info
   
+string AccountServer()
+  {
+   return AccountInfoString(ACCOUNT_SERVER);
+  }
+
 double MarketInfo(string symbol,
                       int type)
   {
@@ -155,20 +208,13 @@ double MarketInfo(string symbol,
      }
    return(0);
   }
-  
-bool IsConnected()
-  {
-   return TerminalInfoInteger(TERMINAL_CONNECTED);
-  }
-  
-string AccountServer()
-  {
-   return AccountInfoString(ACCOUNT_SERVER);
-  }
-  
-//int ObjectFind(const string object_name) {
-//    return ObjectFind(0, object_name);
-//}
+
+//+------------------------------------------------------------------+
+//| Objects
+
+int ObjectFind(const string object_name) {
+    return ObjectFind(0, object_name);
+}
 
 bool ObjectSetText(
    string   object_name,         // object name
@@ -210,39 +256,33 @@ int ObjectsTotal() {
 //) {
 //   return ObjectCreate(0, object_name, object_type, sub_window, time1, price1, time2, price2, time3, price3);
 //}
+  
+//+------------------------------------------------------------------+
+//| Terminal Info
 
-ENUM_TIMEFRAMES GetMql5TimeFrame(int tf)
+bool IsConnected()
   {
-   switch(tf)
-     {
-      case 0: return(PERIOD_CURRENT);
-      case 1: return(PERIOD_M1);
-      case 5: return(PERIOD_M5);
-      case 15: return(PERIOD_M15);
-      case 30: return(PERIOD_M30);
-      case 60: return(PERIOD_H1);
-      case 240: return(PERIOD_H4);
-      case 1440: return(PERIOD_D1);
-      case 10080: return(PERIOD_W1);
-      case 43200: return(PERIOD_MN1);
-      
-      case 2: return(PERIOD_M2);
-      case 3: return(PERIOD_M3);
-      case 4: return(PERIOD_M4);      
-      case 6: return(PERIOD_M6);
-      case 10: return(PERIOD_M10);
-      case 12: return(PERIOD_M12);
-      case 16385: return(PERIOD_H1);
-      case 16386: return(PERIOD_H2);
-      case 16387: return(PERIOD_H3);
-      case 16388: return(PERIOD_H4);
-      case 16390: return(PERIOD_H6);
-      case 16392: return(PERIOD_H8);
-      case 16396: return(PERIOD_H12);
-      case 16408: return(PERIOD_D1);
-      case 32769: return(PERIOD_W1);
-      case 49153: return(PERIOD_MN1);      
-      default: return(PERIOD_CURRENT);
-     }
+   return TerminalInfoInteger(TERMINAL_CONNECTED);
   }
+  
+bool IsTesting() {
+    return MQLInfoInteger(MQL_TESTER);
+}
+
+bool IsTradeAllowed() {
+    return MQLInfoInteger(MQL_TRADE_ALLOWED);
+}
+
+bool IsVisualMode() {
+    return MQLInfoInteger(MQL_VISUAL_MODE);
+}
+
+bool IsOptimization() {
+    return MQLInfoInteger(MQL_OPTIMIZATION);
+}
+
+//+------------------------------------------------------------------+
+//| Order Trade Processing
+
+
 #endif

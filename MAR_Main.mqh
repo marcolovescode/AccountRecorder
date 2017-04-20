@@ -110,20 +110,20 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
         return false;
     }
     
-    Error::PrintInfo(ErrorInfo, "Starting first run", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "Starting first run", FunctionTrace, NULL, false, ErrorTerminal);
     displayFeedback(); // starting first run
     
     finishedCycle = false;
     
     if(!AccountMan.setupSchema()) {
-        Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Aborting first run, schema failed for readiness.", FunctionTrace, NULL, false, ErrorTerminal);
         dWriterMan.resetBlockingErrors();
         displayFeedback(true, false, true);
         finishedCycle = true;
         return false;
     }
     if(!AccountMan.setupAccountRecords()) {
-        Error::ThrowError(ErrorNormal, "Aborting first run, could not create account records.", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Aborting first run, could not create account records.", FunctionTrace, NULL, false, ErrorTerminal);
         dWriterMan.resetBlockingErrors();
         displayFeedback(true, false, true, true);
         finishedCycle = true;
@@ -131,7 +131,7 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
     }
     AccountMan.doCycle(true);
     
-    Error::PrintInfo(ErrorInfo, "First run complete.", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "First run complete.", FunctionTrace, NULL, ErrorTerminal);
     firstRunComplete = true;
     finishedCycle = true;
     displayFeedback();
@@ -142,7 +142,7 @@ bool MainAccountRecorder::doFirstRun(bool force = false) {
 bool MainAccountRecorder::setupSchema() {
     string scriptSrc[];
 
-    Error::PrintInfo(ErrorInfo, "Setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "Setting up schema", FunctionTrace, NULL, false, ErrorTerminal);
 
     // todo: ordering and modes for DB types
 
@@ -193,7 +193,7 @@ bool MainAccountRecorder::setupSchema() {
     }
     
     checkSchema();
-    Error::PrintInfo(ErrorInfo, "Finished setting up schema", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "Finished setting up schema", FunctionTrace, NULL, ErrorTerminal);
 
     return schemaReady;
 }
@@ -256,7 +256,7 @@ bool MainAccountRecorder::checkSchema() {
             , subDbType[i]
             )
         ) {
-            Error::ThrowError(ErrorNormal, EnumToString(dbType[i]) + (subDbType[i] > -1 ? EnumToString(subDbType[i]) : "") + ": Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, EnumToString(dbType[i]) + (subDbType[i] > -1 ? EnumToString(subDbType[i]) : "") + ": Could not check tables to verify schema readiness", FunctionTrace, NULL, false, ErrorTerminal);
         } else {
             schemaReady = (tableCount == expectedTableCount);
             
@@ -272,7 +272,7 @@ bool MainAccountRecorder::checkSchema() {
 
 bool MainAccountRecorder::setupAccountRecords() {
     if(!IsConnected()) {
-        Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace, NULL, false, ErrorForceTerminal);
+        Error::ThrowError(ErrorNormal, "Not connected to server", FunctionTrace, NULL, false, ErrorTerminal);
         return false;
     }
     
@@ -349,7 +349,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     if(SkipWeekends) {
         if(Common::IsDatetimeInRange(currentTimerTime, EndWeekday, EndWeekdayHour, StartWeekday, StartWeekdayHour)) {
             if(!firstWeekendNoticeFired) {
-                Error::PrintInfo(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, ErrorForceTerminal);
+                Error::PrintInfo_v02(ErrorInfo, "Currently a weekend, running cycle once before trading week starts again.", FunctionTrace, NULL, false, ErrorTerminal);
                 firstWeekendNoticeFired = true;
             } else if(!force) { 
                 dWriterMan.resetBlockingErrors(); 
@@ -363,11 +363,11 @@ void MainAccountRecorder::doCycle(bool force = false) {
     
     finishedCycle = false;
     displayFeedback();
-    Error::PrintInfo(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, false, ErrorTerminal);
     
     if(!checkSchema()) {
         if(!setupSchema()) {
-            Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorForceTerminal);
+            Error::ThrowError(ErrorNormal, "Could not verify schema readiness, aborting cycle.", FunctionTrace, NULL, false, ErrorTerminal);
             dWriterMan.resetBlockingErrors();
             finishedCycle = true;
             displayFeedback(false, false, true);
@@ -376,13 +376,13 @@ void MainAccountRecorder::doCycle(bool force = false) {
     }
     
     if(EnableOrderRecording && (force || (currentTimerTime - lastOrderTime >= OrderRefreshSeconds))) {
-        Error::PrintInfo(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorForceTerminal);
+        Error::PrintInfo_v02(ErrorInfo, "Updating order records...", FunctionTrace, NULL, ErrorTerminal);
         lastOrderSuccess = updateOrders();
         lastOrderTime = currentTimerTime;
     }
     
     if(EnableEquityRecording && (force || (currentTimerTime - lastEquityTime >= EquityRefreshSeconds))) {
-        Error::PrintInfo(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorForceTerminal);
+        Error::PrintInfo_v02(ErrorInfo, "Updating equity records...", FunctionTrace, NULL, ErrorTerminal);
         lastEquitySuccess = updateEquity();
         lastEquityTime = currentTimerTime;
     }
@@ -391,7 +391,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
         dWriterMan.freeMemory(DW_Sqlite);
     }
     
-    Error::PrintInfo(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorForceTerminal);
+    Error::PrintInfo_v02(ErrorInfo, "Cycle completed.", FunctionTrace, NULL, ErrorTerminal);
     dWriterMan.resetBlockingErrors();
     finishedCycle = true;
     if(firstRunComplete) { displayFeedback(); }
@@ -403,7 +403,6 @@ bool MainAccountRecorder::updateOrders() {
     int orderCount = OrdersTotal();
     for(int i = 0; i < orderCount; i++) {
         if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
-        if(OrderType() > OP_SELL) { continue; } // is a pending order, then continue
         
         recordOrder(orderUuid);
     }
@@ -411,7 +410,6 @@ bool MainAccountRecorder::updateOrders() {
     orderCount = OrdersHistoryTotal();
     for(int i = 0; i < orderCount; i++) {
         if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) { continue; }
-        if(OrderType() > OP_SELL && OrderType() < 6) { continue; } // is a pending order, then continue // 6 is a balance transaction, let it through
         
         recordOrder(orderUuid);
     }
@@ -425,8 +423,6 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
     int orderTypeId = OrderType();
     int orderNum = OrderTicket();
     string orderCom = OrderComment();
-    
-    if(orderTypeId > OP_SELL && orderTypeId < 6) { return false; } // ignore buy/sell stops and limits. todo: how to handle?
     
     if(!dWriterMan.queryRunConditional(
         StringFormat("select uuid from transactions where num='%i';", orderNum)
@@ -456,9 +452,10 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
         
     // todo: handle partial lot closes?
     // is the original order modified, or new orders created?
-    if(orderTypeId <= OP_SELL) {
+    if(orderTypeId < 6) { // OP_BUY, OP_SELL, OP_BUYSTOP, OP_SELLSTOP, OP_BUYLIMIT, OP_SELLLIMIT (6 = Balance)
         // record txn_orders
         // lots can change, but should not be updated here.
+        // todo: pendings - change OrderType when a pending order changes type to a OP_BUY/OP_SELL?
         if(!dWriterMan.queryRunConditional(
             StringFormat("select txn_uuid from txn_orders where txn_uuid='%s';", orderUuid)
             , orderSpecificUuid
@@ -526,6 +523,7 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
 
     // record txn_orders_exit
     if(OrderCloseTime() > 0) {
+        // todo: pendings - add OrderType() to exit
         if(!dWriterMan.queryRunConditional(
             StringFormat("select txn_uuid from txn_orders_exit where txn_uuid='%s';", orderUuid)
             , exitSpecificUuid
@@ -555,7 +553,7 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
 }
 
 bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
-    if(OrderType() > OP_SELL) { 
+    if(OrderType() > OP_SELL) { // todo: pendings - record splits for pendings?
         Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
         return false;
     }
@@ -696,7 +694,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
 }
 
 bool MainAccountRecorder::recordOrderElection(string orderUuid) {
-    if(OrderType() > OP_SELL) { 
+    if(OrderType() > OP_SELL) { // todo: pendings - record for pendings? most likely not
         Error::ThrowError(ErrorNormal, "Order is not a buy or sell.", FunctionTrace);
         return false;
     }
@@ -754,7 +752,6 @@ bool MainAccountRecorder::updateEquity() {
     int orderCount = OrdersTotal();
     for(int i = 0; i < orderCount; i++) {
         if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
-        if(OrderType() > OP_SELL) { continue; } // is a pending order, then continue
         
         recordOrderEquity(equityUuid);
     }
@@ -783,6 +780,7 @@ bool MainAccountRecorder::recordOrderEquity(string equityUuid) {
     // sell orders at Ask, so OrderOpenPrice()-Ask
     // alt: what is mode_tickvalue?  OrderProfit() - OrderCommision() ) / OrderLots() / MarketInfo( OrderSymbol(), MODE_TICKVALUE
     
+    // todo: pendings - select Ask/Bid for pending orders, also record OrderType()
     query = StringFormat("INSERT INTO txn_orders_equity (txn_uuid, eqt_uuid, price, stoploss, takeprofit, commission, swap, gross) VALUES ('%s', '%s', '%f', '%f', '%f', '%f', '%f', '%f');"
         , orderUuid
         , equityUuid

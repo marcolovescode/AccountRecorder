@@ -6,11 +6,14 @@
 #property copyright "Copyright 2017, Marco Z"
 #property link      "https://github.com/mazmazz"
 #property strict
+
+#include "MC_Common/MC_Error.mqh"
+
 //+------------------------------------------------------------------+
-input int DebugLevel = 2; // DebugLevel: 0=None, 1=Fatal, 2=Normal, 3=Info, 4=Trivial
-input bool LogAllErrorsToTerminal = true; // LogAllErrorsToTerminal
-input bool LogAllErrorsToFile = false; // LogAllErrorsToFile
-input string ErrorLogFileName = ""; // ErrorLogFileName: default Log_[datetime].txt in MQL4\Files
+input ErrorLevelConfig ErrorTerminalLevel=ErrorConfigFatalNormal;
+input ErrorLevelConfig ErrorFileLevel=ErrorConfigNone;
+input ErrorLevelConfig ErrorAlertLevel=ErrorConfigFatal;
+input string ErrorLogFileName=""; // ErrorLogFileName: Leave blank to generate a filename
 input string TimingOptions = "-------------------- Timing --------------------";
 input int DelayedEntrySeconds = 5;
 input int OrderRefreshSeconds = 60;
