@@ -11,7 +11,7 @@
 #include <MC_Common/MC_Resource.mqh>
 #include "MQ_QueryData/MD_DataWriterManager.mqh"
 #include "MAR_Settings.mqh"
-#include <Uuid.mqh>
+#include <MC_Common/Uuid.mqh>
 
 class MainAccountRecorder {
     public:
