@@ -44,11 +44,18 @@ class MainAccountRecorder {
     bool checkSchema();
     bool setupAccountRecords();
     
+    int lastOrderActiveCount;
+    int lastOrderHistoryCount;
+    
     bool updateOrders();
     bool recordOrder(string &orderUuidOut, bool recordElectionIfEnabled = true);
     bool recordOrderExit(string orderUuid);
     bool recordOrderSplits(string orderUuid);
     bool recordOrderElection(string orderUuid);
+    
+    long lastEquityAccount;
+    double lastEquityValue;
+    double lastBalanceValue;
     
     bool updateEquity();
     bool recordOrderEquity(string equityUuid);
@@ -57,6 +64,12 @@ class MainAccountRecorder {
 };
 
 void MainAccountRecorder::MainAccountRecorder() {
+    lastEquityValue = -0.00000001;
+    lastBalanceValue = -0.00000001;
+    lastEquityAccount = 0;
+    lastOrderActiveCount = 0;
+    lastOrderHistoryCount = 0;
+
     doFirstConnect();
 }
 
@@ -364,7 +377,7 @@ void MainAccountRecorder::doCycle(bool force = false) {
     
     finishedCycle = false;
     displayFeedback();
-    Error::PrintInfo_v02(ErrorInfo, "Doing cycle...", FunctionTrace, NULL, false, ErrorTerminal);
+    Error::PrintInfo("Doing cycle...");
     
     if(!checkSchema()) {
         if(!setupSchema()) {
@@ -402,17 +415,30 @@ bool MainAccountRecorder::updateOrders() {
     string orderUuid;
     
     int orderCount = OrdersTotal();
-    for(int i = 0; i < orderCount; i++) {
-        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
-        
-        recordOrder(orderUuid);
-    }
+    // todo: more robust active trade detection
+    // compare a list of order IDs
+    // possibly compare specific order values? comment, value, etc.?
+    //if(CollapseOrderUpdates && lastOrderActiveCount == orderCount) {
+    //    Error::PrintInfo("No new active orders.");
+    //} else {
+        for(int i = 0; i < orderCount; i++) {
+            if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
+            
+            recordOrder(orderUuid);
+        }
+        lastOrderActiveCount = orderCount;
+    //}
     
     orderCount = OrdersHistoryTotal();
-    for(int i = 0; i < orderCount; i++) {
-        if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) { continue; }
-        
-        recordOrder(orderUuid);
+    if(CollapseOrderUpdates && lastOrderHistoryCount == orderCount) {
+        Error::PrintInfo("No new closed orders.");
+    } else {
+        for(int i = 0; i < orderCount; i++) {
+            if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) { continue; }
+            
+            recordOrder(orderUuid);
+        }
+        lastOrderHistoryCount = orderCount;
     }
     
     return true;
@@ -733,6 +759,15 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
 bool MainAccountRecorder::updateEquity() {
     string equityUuid = GetUuid(); string query = "";
     
+    if(CollapseEquityUpdates
+        && lastEquityValue == AccountInfoDouble(ACCOUNT_EQUITY)
+        && lastBalanceValue == AccountInfoDouble(ACCOUNT_BALANCE)
+        && lastEquityAccount == AccountInfoInteger(ACCOUNT_LOGIN) 
+    ) {
+        Error::PrintInfo("No new equity activity");
+        return true;
+    }
+    
     query = StringFormat("INSERT INTO act_equity (uuid, act_uuid, record_datetime, leverage, margin_so_mode, margin_so_call, margin_so_so, balance, equity, credit, margin) VALUES ('%s', '%s', '%s', '%i', '%i', '%f', '%f', '%f', '%f', '%f', '%f');"
         , equityUuid
         , uuidAccount
@@ -756,6 +791,10 @@ bool MainAccountRecorder::updateEquity() {
         
         recordOrderEquity(equityUuid);
     }
+    
+    lastEquityValue = AccountInfoDouble(ACCOUNT_EQUITY);
+    lastBalanceValue = AccountInfoDouble(ACCOUNT_BALANCE);
+    lastEquityAccount = AccountInfoInteger(ACCOUNT_LOGIN);
     
     return true;
 }

@@ -21,12 +21,14 @@ input int EquityRefreshSeconds = 300;
 //input bool SkipIfDisconnected = true;
 input bool SkipWeekends = true;
 input int StartWeekday = 0; // Start weekday from Sunday = 0, Monday = 1 .. Saturday = 6
-input int StartWeekdayHour = 17;
+input int StartWeekdayHour = 17; // Start hour, local time
 input int EndWeekday = 5; // End weekday from Sunday = 0, Monday = 1 .. Saturday = 6
-input int EndWeekdayHour = 16;
-input string BrokerTimeZone = "+02:00";
+input int EndWeekdayHour = 16; // End hour, local time
 
-input string TaxElectionOptions = "----------------- Tax Elections ----------------";
+input string GeneralOptions = "----------------- General Settings ----------------";
+input string BrokerTimeZone = "+02:00"; // Broker timezone for recording order times correctly
+input bool CollapseEquityUpdates = true; // Update equity only when there is new activity
+input bool CollapseOrderUpdates = true; // Update orders only when there are new orders
 input string TaxElectionTypes = "1 - USA Sec. 988(a)(1)(B)"; // Tax elections: Fill ElectionId with one of these values
 input bool RecordOrderElection = true; // Record tax election
 input int ElectionId = 1;
@@ -39,11 +41,11 @@ input int ConnectRetries = 5;
 input int ConnectRetryDelaySecs = 1;
 
 input bool EnableOdbc = true; // EnableOdbc: Primary database connection
-input string OdbcConnectString = "DSN=PostgreSQL30";
+input string OdbcConnectString = "DSN=postgres_forextest";
 input int OdbcDbType = 4; // OdbcDbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
 input bool EnableOdbc2 = true; // EnableOdbc2: Backup database connection
-input string Odbc2ConnectString = "DSN=SqliteOdbcTest"; 
+input string Odbc2ConnectString = "DSN=sqlite3_forextest"; 
 input int Odbc2DbType = 3; // Odbc2DbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
 #ifndef _NoSqlite
