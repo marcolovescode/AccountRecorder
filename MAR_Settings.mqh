@@ -7,7 +7,7 @@
 #property link      "https://github.com/mazmazz"
 #property strict
 
-#include "MC_Common/MC_Error.mqh"
+#include <MC_Common/MC_Error.mqh>
 
 //+------------------------------------------------------------------+
 input ErrorLevelConfig ErrorTerminalLevel=ErrorConfigFatalNormal;
@@ -46,6 +46,12 @@ input bool EnableOdbc2 = true; // EnableOdbc2: Backup database connection
 input string Odbc2ConnectString = "DSN=SqliteOdbcTest"; 
 input int Odbc2DbType = 3; // Odbc2DbType: 3=Sqlite, 4=Postgres, 5=Mysql
 
+#ifndef _NoSqlite
 input bool EnableSqlite = false; // EnableSqlite: Use internal SQLite DLL instead of ODBC. Is less stable; ODBC is recommended. Needs sqlite3.dll in MQL4/Libraries/MD_DataWriter
 bool SlForceFreeMem = true; // appears to be necessary -- sqlite fails and reports out of memory if MT4's garbage collection frees too much mem.
 input string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
+#else
+bool EnableSqlite = false; // EnableSqlite: Use internal SQLite DLL instead of ODBC. Is less stable; ODBC is recommended. Needs sqlite3.dll in MQL4/Libraries/MD_DataWriter
+bool SlForceFreeMem = true; // appears to be necessary -- sqlite fails and reports out of memory if MT4's garbage collection frees too much mem.
+string SlOrderDbPath = "D:\\Desktop\\marTest.sqlite"; // DbPath: Use a separate file for every EA instance
+#endif

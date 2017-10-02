@@ -9,10 +9,13 @@
 //+------------------------------------------------------------------+
 #define _MariaDB
 
-#include "../MC_Common/MC_Common.mqh"
-#include "../MC_Common/MC_Error.mqh"
+#include <MC_Common/MC_Common.mqh>
+#include <MC_Common/MC_Error.mqh>
 #include "depends/mql4-odbc.mqh"
+
+#ifndef _NoSqlite
 #include "depends/SQLite3MQL4/SQLite3Base.mqh"
+#endif
 
 enum DataWriterFunc {
     DW_Func_None,
@@ -58,7 +61,9 @@ class DataWriter {
     bool getCsvHandle(int &outFileHandle);
 
     private:
+#ifndef _NoSqlite
     CSQLite3Base *sqlite;
+#endif
     
     int envHandle; //odbc
     int dbcHandle; // odbc
@@ -87,8 +92,10 @@ void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int
     connectRetries = connectRetriesIn;
     connectRetryDelaySecs = connectRetryDelaySecsIn;
     blockingError = false;
-    
+
+#ifndef _NoSqlite
     if(dbType == DW_Sqlite) { sqlite = new CSQLite3Base(); }
+#endif
     
     if(StringLen(param) > 0) { 
         setParams(param, param2, param3, param4, param5, param6, param7);
@@ -98,7 +105,9 @@ void DataWriter::DataWriter(DataWriterType dbTypeIn, int connectRetriesIn=5, int
 
 void DataWriter::~DataWriter() {
     disconnect();
+#ifndef _NoSqlite
     if(CheckPointer(sqlite) == POINTER_DYNAMIC) { delete(sqlite); }
+#endif
 }
 
 void DataWriter::setParams(string param="", string param2="", string param3="", string param4="", int param5=-1, int param6=-1, int param7=-1) {
@@ -171,7 +180,7 @@ bool DataWriter::connect() {
                 return false; 
             }
             else { return true; }
-            
+#ifndef _NoSqlite            
         case DW_Sqlite: // param = file path
             iResult = sqlite.Connect(filePath);
             if(iResult != SQLITE_OK) {
@@ -179,7 +188,7 @@ bool DataWriter::connect() {
                 return false;
             }
             else { return true; }
-
+#endif
         case DW_Text:
         case DW_Csv:
             fileHandle = FileOpen(filePath, FILE_SHARE_READ|FILE_SHARE_WRITE|(dbType == DW_Csv ? FILE_CSV : FILE_TXT)|FILE_UNICODE, csvSep);
@@ -200,11 +209,11 @@ void DataWriter::disconnect() {
         case DW_Odbc:
             ODBC_Deinit(envHandle, dbcHandle, stmtHandle);
             break;
-            
+#ifndef _NoSqlite            
         case DW_Sqlite:
             sqlite.Disconnect();
             break;
-
+#endif
         case DW_Text:
         case DW_Csv:
             if(fileHandle != INVALID_HANDLE) { FileClose(fileHandle); }
@@ -225,7 +234,7 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
                     return reconnect(doAttempts); 
                 } else { return false; }
             } else { return true; }
-            
+#ifndef _NoSqlite            
         case DW_Sqlite:
             if(!sqlite.IsConnected()) {
                 if(doReconnect) {
@@ -233,7 +242,7 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
                     return reconnect(doAttempts); 
                 } else { return false; }
             } else { return true; }
-            
+#endif            
         case DW_Text:
         case DW_Csv:
             if(fileHandle == INVALID_HANDLE) {
@@ -251,9 +260,11 @@ bool DataWriter::checkConnection(bool doReconnect = false, bool doAttempts = tru
 
 void DataWriter::freeMemory() {
     switch(dbType) {
+#ifndef _NoSqlite    
         case DW_Sqlite:
             sqlite.FreeMemory();
             break;
+#endif
     }
 }
 
@@ -271,7 +282,7 @@ bool DataWriter::queryRun(string dataInput) {
                     working = handleErrorRetry(ODBC_LastErrorCode, ODBC_LastErrorNativeCode, ODBC_LastErrorMessage, ErrorNormal, "ODBC query failed: " + ODBC_LastErrorString, FunctionTrace, dataInput); 
                     continue;
                 } else { return true; }
-                
+#ifndef _NoSqlite
             case DW_Sqlite: // param = file path
                 result = sqlite.Exec(dataInput); // extra "" fixes mt4 build 640 dll param corruption
                 if (result != SQLITE_OK && result != SQLITE_ROW && result != SQLITE_DONE) { 
@@ -279,7 +290,7 @@ bool DataWriter::queryRun(string dataInput) {
                     continue;
                 }
                 else { return true; }
-    
+#endif
             case DW_Text:
                 dataInput = lineComment + "\n" + dataInput + "\n";
     
@@ -331,7 +342,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                     continue;
                 }
                 else { return callResult; }
-                
+#ifndef _NoSqlite
             case DW_Sqlite: {
                 CSQLite3Table tbl;
                 callResult = sqlite.Query(tbl, query);
@@ -363,7 +374,7 @@ int DataWriter::queryRetrieveRows(string query, string &result[][]) {
                 
                 return i;
             }
-                
+#endif
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
                 Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);
@@ -421,7 +432,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                         break;
                     }
                 }
-        
+#ifndef _NoSqlite
             case DW_Sqlite: {
                 CSQLite3Table tbl;
                 callResult = sqlite.Query(tbl, query);
@@ -454,7 +465,7 @@ bool DataWriter::queryRetrieveOne(string query, T &result, int rowIndex = 0/*, i
                 }
                 break;
             }
-                
+#endif
             case DW_Text:
             case DW_Csv: // todo: use a library like pandas to select CSV rows/cols
                 Error::ThrowError(ErrorNormal, "Text and CSV not supported for retrieval", FunctionTrace, dbType);

@@ -8,7 +8,7 @@
 #property strict
 //+------------------------------------------------------------------+
 #include "MD_DataWriter.mqh"
-#include "../MC_Common/MC_Common.mqh"
+#include <MC_Common/MC_Common.mqh>
 
 class DataWriterManager {
     public:

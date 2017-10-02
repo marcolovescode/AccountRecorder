@@ -1,10 +1,17 @@
 #property copyright "Copyright 2017, Marco Z"
 #property link      "https://github.com/mazmazz"
 #property strict
+
+#define _ProjectName "AccountRecorder"
+#define _ProjectShortName "MAR"
+#define _ProjectVersion "v0.2 2017/03/13"
+
+#define _NoSqlite // Sqlite does not compile past MetaEditor 1601
+
 //+------------------------------------------------------------------+
 
 #ifdef __MQL5__
-#include "MC_Common/Mql4Shim.mqh"
+#include <MC_Common/Mql4Shim.mqh>
 //#define _X64 // define if building x64
 //#define _X64 IsX64()
 #else
@@ -22,10 +29,10 @@
     // to MQL4/Experts/[current folder if any]/MAR_Scripts
     // to bypass the FileOpen sandbox imposed by MT4
 
-#include "MC_Common/MC_Common.mqh"
-#include "MC_Common/MC_Error.mqh"
+#include <MC_Common/MC_Common.mqh>
+#include <MC_Common/MC_Error.mqh>
 
-#include "MC_Common/MC_Resource.mqh"
+#include <MC_Common/MC_Resource.mqh>
 #ifdef _LOCALRESOURCE
     #include "MAR_Scripts/MAR_Scripts.mqh"
 #else
@@ -41,15 +48,15 @@ bool FirstTimerRun = true;
 //MainAccountRecorder *AccountMan;
 
 int OnInit() {
-    Error::DebugLevel = ::DebugLevel;
-    Error::LogAllErrorsToFile = ::LogAllErrorsToFile;
-    Error::LogAllErrorsToTerminal = ::LogAllErrorsToTerminal;
+    Error::TerminalLevel = ::ErrorTerminalLevel;
+    Error::FileLevel = ::ErrorFileLevel;
+    Error::AlertLevel = ::ErrorAlertLevel;
     Error::FilePath = ::ErrorLogFileName;
     
     MAR_LoadScripts();
     
-    Error::PrintInfo(ErrorInfo, "AccountRecorder");
-    Error::PrintInfo(ErrorInfo, "Connecting to databases...");
+    Error::PrintInfo_v02(ErrorInfo, "AccountRecorder");
+    Error::PrintInfo_v02(ErrorInfo, "Connecting to databases...");
     Comment("AccountRecorder\r\n"
         , "\r\n"
         , "Connecting to databases..."
@@ -59,7 +66,7 @@ int OnInit() {
     
     SetTimer(true);
     
-    Error::PrintInfo(ErrorInfo, "Waiting for first run...");
+    Error::PrintInfo_v02(ErrorInfo, "Waiting for first run...");
     Comment("AccountRecorder\r\n"
         , "\r\n"
         , "Starting first run " + (DelayedEntrySeconds > 0 ? "in " + DelayedEntrySeconds + " seconds..." : "") + "\r\n"

@@ -11,7 +11,7 @@ Output =
 #property link      "https://github.com/mazmazz"
 #property strict
 
-#include "../MC_Common/MC_Resource.mqh"
+#include <MC_Common/MC_Resource.mqh>
 //+------------------------------------------------------------------+
 
 

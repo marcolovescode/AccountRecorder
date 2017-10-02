@@ -8,9 +8,10 @@
 #property strict
 //+------------------------------------------------------------------+
 
-#include "MC_Common/MC_Resource.mqh"
-#include "MD_DataWriter/MD_DataWriterManager.mqh"
+#include <MC_Common/MC_Resource.mqh>
+#include "MQ_QueryData/MD_DataWriterManager.mqh"
 #include "MAR_Settings.mqh"
+#include <Uuid.mqh>
 
 class MainAccountRecorder {
     public:
@@ -298,7 +299,7 @@ bool MainAccountRecorder::setupAccountRecords() {
             )
         , ""
         , ""
-        , Common::GetUuid()
+        , GetUuid()
         , -1
         , -1
         , true
@@ -322,7 +323,7 @@ bool MainAccountRecorder::setupAccountRecords() {
             )
         , ""
         , ""
-        , Common::GetUuid()
+        , GetUuid()
         , -1
         , -1
         , true
@@ -439,7 +440,7 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
             )
         , ""
         , ""
-        , Common::GetUuid()
+        , GetUuid()
         , -1
         , -1
         , UseAllWriters
@@ -469,7 +470,7 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
                 )
             , ""
             , ""
-            , orderUuid // Common::GetUuid()
+            , orderUuid // GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -498,7 +499,7 @@ bool MainAccountRecorder::recordOrder(string &orderUuidOut, bool recordElectionI
                 )
             , ""
             , ""
-            , Common::GetUuid()
+            , GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -538,7 +539,7 @@ bool MainAccountRecorder::recordOrderExit(string orderUuid) {
                 )
             , ""
             , ""
-            , orderUuid // Common::GetUuid()
+            , orderUuid // GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -576,7 +577,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 )
             , ""
             , ""
-            , Common::GetUuid()
+            , GetUuid()
             , -1 
             , -1
             , UseAllWriters
@@ -620,7 +621,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
                 )
             , ""
             , ""
-            , Common::GetUuid()
+            , GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -663,7 +664,7 @@ bool MainAccountRecorder::recordOrderSplits(string orderUuid) {
             )
         , ""
         , ""
-        , Common::GetUuid()
+        , GetUuid()
         , -1
         , -1
         , UseAllWriters
@@ -715,7 +716,7 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
                 )
             , ""
             , ""
-            , Common::GetUuid()
+            , GetUuid()
             , -1
             , -1
             , UseAllWriters
@@ -730,7 +731,7 @@ bool MainAccountRecorder::recordOrderElection(string orderUuid) {
 }
 
 bool MainAccountRecorder::updateEquity() {
-    string equityUuid = Common::GetUuid(); string query = "";
+    string equityUuid = GetUuid(); string query = "";
     
     query = StringFormat("INSERT INTO act_equity (uuid, act_uuid, record_datetime, leverage, margin_so_mode, margin_so_call, margin_so_so, balance, equity, credit, margin) VALUES ('%s', '%s', '%s', '%i', '%i', '%f', '%f', '%f', '%f', '%f', '%f');"
         , equityUuid

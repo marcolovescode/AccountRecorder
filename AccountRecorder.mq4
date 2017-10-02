@@ -6,10 +6,12 @@
 #define _ProjectShortName "MAR"
 #define _ProjectVersion "v0.2 2017/03/13"
 
+#define _NoSqlite // Sqlite does not compile past MetaEditor 1601
+
 //+------------------------------------------------------------------+
 
 #ifdef __MQL5__
-#include "MC_Common/Mql4Shim.mqh"
+#include <MC_Common/Mql4Shim.mqh>
 //#define _X64 // define if building x64
 //#define _X64 IsX64()
 #else
@@ -27,10 +29,10 @@
     // to MQL4/Experts/[current folder if any]/MAR_Scripts
     // to bypass the FileOpen sandbox imposed by MT4
 
-#include "MC_Common/MC_Common.mqh"
-#include "MC_Common/MC_Error.mqh"
+#include <MC_Common/MC_Common.mqh>
+#include <MC_Common/MC_Error.mqh>
 
-#include "MC_Common/MC_Resource.mqh"
+#include <MC_Common/MC_Resource.mqh>
 #ifdef _LOCALRESOURCE
     #include "MAR_Scripts/MAR_Scripts.mqh"
 #else
