@@ -13,20 +13,16 @@ This plugin connects to a database via ODBC. It supports MySQL, PostgreSQL, and 
 *(This document does not constitute legal advice. Please consult a licensed professional such as a
 CPA, Enrolled Agent, or attorney.)*
 
-I created this program in order to satisfy a U.S. tax procedure outlined by [26 CFR § 1.988-3(b)(3)](https://www.law.cornell.edu/cfr/text/26/1.988-3#b_3:~:text=(3)%20Requirements%20for%20making%20the%20election.).
-If followed properly, the procedure allows a taxpayer to elect for a treatment outlined by [26 USC § 988(a)(1)(B)](https://www.law.cornell.edu/uscode/text/26/988#tab_default_1:~:text=(B)Special%20rule%20for%20forward%20contracts%2C%20etc.).
-
-The tax treatment allows for a FX trade to be taxed as a capital gain instead of as ordinary income.
-This lowers the overall tax due.
+I created this program in order to satisfy a U.S. tax procedure that allows for a FX trade to be taxed as a
+capital gain instead of as ordinary income. This lowers the overall tax due.
 
 The election is made by "clearly identifying [an elected transaction] on [the trader's] books and records on
 the date the transaction is entered into." This program satisfies that requirement by promptly
-recording a *§ 988(a)(1)(B)* election for each trade entered.
+recording a *IRC § 988(a)(1)(B)* election for each trade entered.
 
-In addition, I aimed to help my bookkeeping and reporting efforts by utilizing the database. As I was
-considering off-shore trading houses, I was unable to receive a summary statement of my trades entered
-per year. As a result, I would have needed to submit a tax return that listed every individual trade.
-That tax return could have been 300 pages long!
+In addition, I aimed to bolster my bookkeeping and reporting efforts by utilizing the database. As I was
+planning to use off-shore trading houses, I would be unable to receive a summary statement of my trades entered
+per year. As a result, I would have needed to prepare a tax return that listed every individual trade.
 
 ## License
 
